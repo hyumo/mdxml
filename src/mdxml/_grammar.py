@@ -107,7 +107,8 @@ class TreeHandler(Generic[R]):
         return self.finish()
 
     def reset(self) -> None:
-        """Forget everything read so far, keeping the grammar, to build another root of the same kind."""
+        """Forget everything read so far, to build another root; the grammar is chosen again for it."""
+        self._grammar = None
         self._stack.clear()
         self._skip_depth = 0
         self.result = None

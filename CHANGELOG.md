@@ -26,6 +26,12 @@ between minor versions.
   skip non-matching variables before they're built. The iterator's `.header`
   is the Model Header from the same pass, and it can be closed early or used
   as a context manager.
+- `iter_variables` streams FMI 3.0 Model Variables too: one class per element
+  kind (`Float32Variable` … `ClockVariable`), with aliases, `<Dimension>`s,
+  tuple `start` values for arrays, `String`/`Binary` `<Start>` children
+  (`Binary` as `bytes`), all clock attributes, `variability` defaulted as the
+  standard defines it, and `effective_initial` from the standard's Table 22.
+- `to_dict` turns `bytes` into hex strings.
 - `mdxml variables FILE [--causality …] [--variability …] [--name-prefix …]`
   prints one JSON object per variable.
 - `read_header` returns the full FMI 3.0 Model Header (`mdxml.fmi3.ModelHeader`):

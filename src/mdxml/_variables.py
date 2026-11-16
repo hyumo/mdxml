@@ -11,23 +11,29 @@ from __future__ import annotations
 
 import os
 from collections import deque
-from collections.abc import Generator, Iterable, Mapping
+from collections.abc import Callable, Generator, Iterable, Mapping
 from contextlib import ExitStack
 from enum import Enum
 from types import TracebackType
 from typing import Any
 
 from mdxml import _reader
-from mdxml._errors import ParseError, UnsupportedFmiVersion
+from mdxml._errors import ParseError
 from mdxml._grammar import Grammar, TreeHandler
 from mdxml._header import AnyModelHeader, choose_header_grammar
+from mdxml._schema import Frame
 from mdxml._source import Source, open_source
 from mdxml.fmi2 import _variables as fmi2_variables
 from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
 from mdxml.fmi2._variables import Variable as Fmi2Variable
+from mdxml.fmi3 import _variables as fmi3_variables
+from mdxml.fmi3._variables import Variable as Fmi3Variable
 
-AnyVariable = Fmi2Variable
+AnyVariable = Fmi2Variable | Fmi3Variable
 """A Model Variable of any supported FMI Version."""
+
+FilterValues = Callable[[str, Mapping[str, str]], tuple[str, str]]
+"""Gives a variable's causality and variability from its element name and raw attributes."""
 
 Selector = str | Iterable[str] | None
 """A filter value: one value, several, or ``None`` for no filtering."""
@@ -57,27 +63,24 @@ class _Filter:
     def active(self) -> bool:
         return self._causality is not None or self._variability is not None or self._name_prefix is not None
 
-    def matches(self, attrs: dict[str, str], defaults: Mapping[str, str]) -> bool:
+    def matches(self, element: str, attrs: dict[str, str], values: FilterValues) -> bool:
         if self._name_prefix is not None and not attrs.get("name", "").startswith(self._name_prefix):
             return False
-        if self._causality is not None:
-            causality = attrs.get("causality", defaults["causality"]).strip()
-            if causality not in self._causality:
-                return False
-        if self._variability is not None:
-            variability = attrs.get("variability", defaults["variability"]).strip()
-            if variability not in self._variability:
-                return False
-        return True
+        if self._causality is None and self._variability is None:
+            return True
+        causality, variability = values(element, attrs)
+        if self._causality is not None and causality not in self._causality:
+            return False
+        return self._variability is None or variability in self._variability
 
 
 class _VariablesHandler:
     """Builds the Model Header, then each Model Variable as its element closes."""
 
     __slots__ = (
-        "_defaults",
-        "_elements",
         "_filter",
+        "_filter_values",
+        "_grammars",
         "_header_handler",
         "_in_variable",
         "_index",
@@ -96,8 +99,8 @@ class _VariablesHandler:
         self._filter = variable_filter if variable_filter.active else None
         self._header_handler = TreeHandler(choose_header_grammar, position, strict=strict)
         self._variable_handler: TreeHandler[Any] | None = None
-        self._elements: frozenset[str] = frozenset()
-        self._defaults: Mapping[str, str] = {}
+        self._grammars: Mapping[str, Grammar[Any]] = {}
+        self._filter_values: FilterValues = fmi2_variables.filter_values
         self._in_variable = False
         self._index = 0
         self._skip_depth = 0
@@ -122,14 +125,14 @@ class _VariablesHandler:
             self._variable_handler.start(name, attrs)
             return
         # A direct child of <ModelVariables>.
-        if name not in self._elements:
+        if name not in self._grammars:
             if self._strict:
                 pos = self._position[0]
                 raise ParseError(f"unknown element <{name}> in <{MODEL_VARIABLES}>", line=pos.line, column=pos.column)
             self._skip_depth = 1
             return
         self._index += 1
-        if self._filter is not None and not self._filter.matches(attrs, self._defaults):
+        if self._filter is not None and not self._filter.matches(name, attrs, self._filter_values):
             self._skip_depth = 1  # skipped variables are never turned into objects
             return
         assert self._variable_handler is not None  # noqa: S101 - set on entering ModelVariables
@@ -164,14 +167,16 @@ class _VariablesHandler:
         return self.header
 
     def _enter_model_variables(self, header: AnyModelHeader) -> None:
-        grammar: Grammar[Any]
         if isinstance(header, Fmi2ModelHeader):
-            grammar = fmi2_variables.VARIABLE_GRAMMAR
-            self._elements = fmi2_variables.VARIABLE_ELEMENTS
-            self._defaults = fmi2_variables.FILTER_DEFAULTS
+            self._grammars = fmi2_variables.VARIABLE_GRAMMARS
+            self._filter_values = fmi2_variables.filter_values
         else:
-            raise UnsupportedFmiVersion(header.fmi_version, "iter_variables doesn't support FMI 3 yet")
-        self._variable_handler = TreeHandler(lambda _: grammar, self._position, strict=self._strict)
+            self._grammars = fmi3_variables.VARIABLE_GRAMMARS
+            self._filter_values = fmi3_variables.filter_values
+        self._variable_handler = TreeHandler(self._choose_variable_grammar, self._position, strict=self._strict)
+
+    def _choose_variable_grammar(self, root: Frame) -> Grammar[Any]:
+        return self._grammars[root.tag]
 
 
 class VariableIterator:

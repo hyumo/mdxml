@@ -14,7 +14,7 @@ from typing import IO, Any, cast
 import pytest
 
 import mdxml
-from mdxml import ParseError, Source, UnsupportedFmiVersion, fmi2, iter_variables, to_dict
+from mdxml import ParseError, Source, fmi2, iter_variables, to_dict
 from mdxml.fmi2 import (
     BooleanVariable,
     Causality,
@@ -508,12 +508,6 @@ def test_errors_point_at_the_variable() -> None:
     with pytest.raises(ParseError) as info:
         list(variables)
     assert info.value.line == 4
-
-
-def test_fmi3_is_not_supported_yet() -> None:
-    # Replaced by real FMI 3 support in issue #8.
-    with pytest.raises(UnsupportedFmiVersion, match="FMI 3"):
-        list(iter_variables(DATA / "reference_fmus" / "BouncingBall" / "FMI3.xml"))
 
 
 # --- Output ---------------------------------------------------------------------------------
