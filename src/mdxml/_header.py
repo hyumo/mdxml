@@ -18,7 +18,8 @@ AnyModelHeader = Fmi2ModelHeader | Fmi3ModelHeader
 """The Model Header of either FMI Version."""
 
 
-def _choose_header_grammar(root: Frame) -> Grammar[AnyModelHeader]:
+def choose_header_grammar(root: Frame) -> Grammar[AnyModelHeader]:
+    """Pick the Model Header grammar for the root element's FMI Version."""
     if root.tag != ROOT:
         raise root.error(f"root element is <{root.tag}>, expected <{ROOT}>")
     fmi_version = root.attrs.get("fmiVersion")
@@ -67,7 +68,7 @@ def read_header(
     """
     _reader.check_max_xml_bytes(max_xml_bytes)
     position: list[_reader.Position] = []
-    handler = TreeHandler(_choose_header_grammar, position, strict=strict)
+    handler = TreeHandler(choose_header_grammar, position, strict=strict)
     with open_source(src, member, max_xml_bytes) as stream:
         _reader.run(stream, handler, position, max_xml_bytes=max_xml_bytes)
     return handler.finish()

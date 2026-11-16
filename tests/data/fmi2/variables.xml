@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written: every ScalarVariable kind and attribute in FMI 2.0, with non-default values. -->
+<fmiModelDescription fmiVersion="2.0" modelName="Vars" guid="{V}">
+  <ModelVariables>
+    <ScalarVariable name="r" valueReference="1" description="a real" causality="output" variability="discrete"
+                    initial="exact" canHandleMultipleSetPerTimeInstant="true">
+      <Real declaredType="T" quantity="Q" unit="m" displayUnit="mm" relativeQuantity="true" min="-1" max="INF"
+            nominal="2" unbounded="true" start="0.5" derivative="3" reinit="true"/>
+      <Annotations><Tool name="t"><Anything/></Tool></Annotations>
+    </ScalarVariable>
+    <ScalarVariable name="i" valueReference="2" causality="parameter" variability="fixed">
+      <Integer declaredType="I" quantity="Count" min="-5" max="5" start="3"/>
+    </ScalarVariable>
+    <ScalarVariable name="b" valueReference="3" causality="input" variability="discrete">
+      <Boolean declaredType="B" start="true"/>
+    </ScalarVariable>
+    <ScalarVariable name="s" valueReference="4" causality="parameter" variability="tunable" initial="exact">
+      <String declaredType="S" start="hello"/>
+    </ScalarVariable>
+    <ScalarVariable name="e" valueReference="5" causality="calculatedParameter" variability="fixed" initial="approx">
+      <Enumeration declaredType="Mode" quantity="Mode" min="0" max="1" start="1"/>
+    </ScalarVariable>
+    <ScalarVariable name="defaults" valueReference="6">
+      <Real/>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure/>
+</fmiModelDescription>

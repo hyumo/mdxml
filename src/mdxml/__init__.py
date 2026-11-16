@@ -9,16 +9,20 @@ from mdxml._errors import MdxmlError, ParseError, UnsafeInput, UnsupportedFmiVer
 from mdxml._header import read_header
 from mdxml._reader import DEFAULT_MAX_XML_BYTES
 from mdxml._source import Source
+from mdxml._variables import AnyVariable, VariableIterator, iter_variables
 
 __all__ = [
     "DEFAULT_MAX_XML_BYTES",
+    "AnyVariable",
     "MdxmlError",
     "ParseError",
     "Source",
     "UnsafeInput",
     "UnsupportedFmiVersion",
+    "VariableIterator",
     "fmi2",
     "fmi3",
+    "iter_variables",
     "main",
     "read_header",
     "to_dict",

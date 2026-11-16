@@ -1,0 +1,292 @@
+"""Streaming Model Variables: one pass that builds the Model Header, then yields variables one at a time.
+
+Expat pushes events while :func:`iter_variables` has to be pulled from, so the
+iterator feeds expat one chunk at a time and hands out the variables that
+chunk completed before reading the next one. Memory therefore stays bounded
+by the chunk size, however many variables the FMU has. Parsing stops at
+``</ModelVariables>``; the Model Structure is never read.
+"""
+
+from __future__ import annotations
+
+import os
+from collections import deque
+from collections.abc import Generator, Iterable, Mapping
+from contextlib import ExitStack
+from enum import Enum
+from types import TracebackType
+from typing import Any
+
+from mdxml import _reader
+from mdxml._errors import ParseError, UnsupportedFmiVersion
+from mdxml._grammar import Grammar, TreeHandler
+from mdxml._header import AnyModelHeader, choose_header_grammar
+from mdxml._source import Source, open_source
+from mdxml.fmi2 import _variables as fmi2_variables
+from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
+from mdxml.fmi2._variables import Variable as Fmi2Variable
+
+AnyVariable = Fmi2Variable
+"""A Model Variable of any supported FMI Version."""
+
+Selector = str | Iterable[str] | None
+"""A filter value: one value, several, or ``None`` for no filtering."""
+
+MODEL_VARIABLES = "ModelVariables"
+
+
+def _selector(value: Selector) -> frozenset[str] | None:
+    if value is None:
+        return None
+    values = [value] if isinstance(value, str) else list(value)
+    # Enum members hash by name, not value, so compare on their string values.
+    return frozenset(str(v.value) if isinstance(v, Enum) else str(v) for v in values)
+
+
+class _Filter:
+    """Decides from a variable's raw attributes whether to build it at all."""
+
+    __slots__ = ("_causality", "_name_prefix", "_variability")
+
+    def __init__(self, *, causality: Selector, variability: Selector, name_prefix: str | None) -> None:
+        self._causality = _selector(causality)
+        self._variability = _selector(variability)
+        self._name_prefix = name_prefix
+
+    @property
+    def active(self) -> bool:
+        return self._causality is not None or self._variability is not None or self._name_prefix is not None
+
+    def matches(self, attrs: dict[str, str], defaults: Mapping[str, str]) -> bool:
+        if self._name_prefix is not None and not attrs.get("name", "").startswith(self._name_prefix):
+            return False
+        if self._causality is not None:
+            causality = attrs.get("causality", defaults["causality"]).strip()
+            if causality not in self._causality:
+                return False
+        if self._variability is not None:
+            variability = attrs.get("variability", defaults["variability"]).strip()
+            if variability not in self._variability:
+                return False
+        return True
+
+
+class _VariablesHandler:
+    """Builds the Model Header, then each Model Variable as its element closes."""
+
+    __slots__ = (
+        "_defaults",
+        "_elements",
+        "_filter",
+        "_header_handler",
+        "_in_variable",
+        "_index",
+        "_position",
+        "_skip_depth",
+        "_strict",
+        "_variable_handler",
+        "done",
+        "header",
+        "pending",
+    )
+
+    def __init__(self, position: list[_reader.Position], *, strict: bool, variable_filter: _Filter) -> None:
+        self._position = position
+        self._strict = strict
+        self._filter = variable_filter if variable_filter.active else None
+        self._header_handler = TreeHandler(choose_header_grammar, position, strict=strict)
+        self._variable_handler: TreeHandler[Any] | None = None
+        self._elements: frozenset[str] = frozenset()
+        self._defaults: Mapping[str, str] = {}
+        self._in_variable = False
+        self._index = 0
+        self._skip_depth = 0
+        self.header: AnyModelHeader | None = None
+        self.pending: deque[AnyVariable] = deque()
+        self.done = False
+
+    def start(self, name: str, attrs: dict[str, str]) -> None:
+        """Open an element."""
+        if self.header is None:
+            if name == MODEL_VARIABLES and self._header_handler.at_root_level:
+                self.header = self._header_handler.stop_here()
+                self._enter_model_variables(self.header)
+            else:
+                self._header_handler.start(name, attrs)
+            return
+        if self._skip_depth:
+            self._skip_depth += 1
+            return
+        if self._in_variable:
+            assert self._variable_handler is not None  # noqa: S101 - set on entering ModelVariables
+            self._variable_handler.start(name, attrs)
+            return
+        # A direct child of <ModelVariables>.
+        if name not in self._elements:
+            if self._strict:
+                pos = self._position[0]
+                raise ParseError(f"unknown element <{name}> in <{MODEL_VARIABLES}>", line=pos.line, column=pos.column)
+            self._skip_depth = 1
+            return
+        self._index += 1
+        if self._filter is not None and not self._filter.matches(attrs, self._defaults):
+            self._skip_depth = 1  # skipped variables are never turned into objects
+            return
+        assert self._variable_handler is not None  # noqa: S101 - set on entering ModelVariables
+        self._in_variable = True
+        self._variable_handler.reset()
+        self._variable_handler.start(name, attrs)
+
+    def end(self, name: str) -> None:
+        """Close an element; a closing variable is built and queued."""
+        if self.header is None:
+            self._header_handler.end(name)
+            return
+        if self._skip_depth:
+            self._skip_depth -= 1
+            return
+        if self._in_variable:
+            assert self._variable_handler is not None  # noqa: S101
+            self._variable_handler.end(name)
+            if self._variable_handler.result is not None:
+                cls, fields = self._variable_handler.result
+                self.pending.append(cls(index=self._index, **fields))
+                self._in_variable = False
+            return
+        # </ModelVariables>: nothing after it is needed.
+        self.done = True
+        raise _reader.Stop
+
+    def finish(self) -> AnyModelHeader:
+        """Return the Model Header once the document has ended without ``<ModelVariables>``."""
+        if self.header is None:
+            self.header = self._header_handler.finish()
+        return self.header
+
+    def _enter_model_variables(self, header: AnyModelHeader) -> None:
+        grammar: Grammar[Any]
+        if isinstance(header, Fmi2ModelHeader):
+            grammar = fmi2_variables.VARIABLE_GRAMMAR
+            self._elements = fmi2_variables.VARIABLE_ELEMENTS
+            self._defaults = fmi2_variables.FILTER_DEFAULTS
+        else:
+            raise UnsupportedFmiVersion(header.fmi_version, "iter_variables doesn't support FMI 3 yet")
+        self._variable_handler = TreeHandler(lambda _: grammar, self._position, strict=self._strict)
+
+
+class VariableIterator:
+    """Iterator over an FMU's Model Variables, read in a single streaming pass.
+
+    :attr:`header` gives the Model Header from the same pass. The source is
+    opened on first use and closed when iteration ends or fails; use the
+    iterator in a ``with`` block (or call :meth:`close`) to close it early.
+    """
+
+    __slots__ = ("_handler", "_max_xml_bytes", "_member", "_position", "_resources", "_src", "_steps", "_strict")
+
+    def __init__(
+        self,
+        src: Source,
+        *,
+        member: str | None,
+        strict: bool,
+        max_xml_bytes: int,
+        variable_filter: _Filter,
+    ) -> None:
+        """Prepare the iterator; nothing is read until it's used."""
+        self._src = src
+        self._member = member
+        self._strict = strict
+        self._max_xml_bytes = max_xml_bytes
+        self._position: list[_reader.Position] = []
+        self._handler = _VariablesHandler(self._position, strict=strict, variable_filter=variable_filter)
+        self._resources = ExitStack()
+        self._steps: Generator[None, None, None] | None = None
+
+    def __iter__(self) -> VariableIterator:
+        """Return the iterator itself."""
+        return self
+
+    def __next__(self) -> AnyVariable:
+        """Return the next Model Variable."""
+        pending = self._handler.pending
+        # The last chunk can both finish the document and queue variables, so only stop when
+        # there's nothing left to read *and* nothing queued.
+        while not pending:
+            if not self._advance() and not pending:
+                raise StopIteration
+        return pending.popleft()
+
+    @property
+    def header(self) -> AnyModelHeader:
+        """The Model Header, read (if it hasn't been yet) without consuming any variables."""
+        while self._handler.header is None and self._advance():
+            pass
+        return self._handler.finish()
+
+    def close(self) -> None:
+        """Stop reading and close the source."""
+        self._resources.close()
+        if self._steps is not None:
+            self._steps.close()
+
+    def __enter__(self) -> VariableIterator:
+        """Use the iterator as a context manager that closes the source on exit."""
+        return self
+
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        """Close the source."""
+        self.close()
+
+    def _advance(self) -> bool:
+        """Parse one more chunk. Return ``False`` once there's nothing left to read."""
+        if self._handler.done:
+            self.close()
+            return False
+        try:
+            if self._steps is None:
+                stream = self._resources.enter_context(open_source(self._src, self._member, self._max_xml_bytes))
+                self._steps = _reader.feed(stream, self._handler, self._position, max_xml_bytes=self._max_xml_bytes)
+            next(self._steps)
+        except StopIteration:
+            self.close()
+            self._handler.finish()
+            return False
+        except BaseException:
+            self.close()
+            raise
+        return True
+
+
+def iter_variables(
+    src: Source,
+    *,
+    causality: Selector = None,
+    variability: Selector = None,
+    name_prefix: str | None = None,
+    member: str | None = None,
+    strict: bool = False,
+    max_xml_bytes: int = _reader.DEFAULT_MAX_XML_BYTES,
+) -> VariableIterator:
+    """Stream an FMU's Model Variables one at a time, in file order.
+
+    ``src``, ``member``, ``strict`` and ``max_xml_bytes`` work as for
+    :func:`mdxml.read_header`. Memory use doesn't grow with the number of
+    variables, and nothing after ``</ModelVariables>`` is read.
+
+    ``causality`` and ``variability`` (one value or several) and
+    ``name_prefix`` keep only matching variables. They're checked against the
+    raw attributes before a variable is built, so skipped variables cost
+    almost nothing; Variable Indexes still count every variable.
+
+    The returned iterator's ``.header`` is the Model Header from the same pass.
+    """
+    _reader.check_max_xml_bytes(max_xml_bytes)
+    if isinstance(src, (str, os.PathLike)) and not os.path.exists(src):
+        raise FileNotFoundError(f"no such file or directory: {os.fspath(src)!r}")
+    variable_filter = _Filter(causality=causality, variability=variability, name_prefix=name_prefix)
+    return VariableIterator(
+        src, member=member, strict=strict, max_xml_bytes=max_xml_bytes, variable_filter=variable_filter
+    )

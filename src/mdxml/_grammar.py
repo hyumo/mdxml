@@ -96,6 +96,23 @@ class TreeHandler(Generic[R]):
         self.result: R | None = None
         self.stopped = False
 
+    @property
+    def at_root_level(self) -> bool:
+        """Return whether the next element to open would be a direct child of the root."""
+        return self._grammar is not None and not self._skip_depth and len(self._stack) == 1
+
+    def stop_here(self) -> R:
+        """Build the root object from what has been read so far, as if ``stop_at`` had opened."""
+        self.stopped = True
+        return self.finish()
+
+    def reset(self) -> None:
+        """Forget everything read so far, keeping the grammar, to build another root of the same kind."""
+        self._stack.clear()
+        self._skip_depth = 0
+        self.result = None
+        self.stopped = False
+
     def start(self, name: str, attrs: dict[str, str]) -> None:
         """Open an element."""
         if self._skip_depth:
@@ -103,10 +120,12 @@ class TreeHandler(Generic[R]):
             return
         pos = self._position[0]
         frame = Frame(name, attrs, pos.line, pos.column)
-        if self._grammar is None:
-            self._grammar = self._choose(frame)
+        if not self._stack:
+            if self._grammar is None:
+                self._grammar = self._choose(frame)
             self._stack.append(frame)
             return
+        assert self._grammar is not None  # noqa: S101 - set when the root opened
         parent = self._stack[-1]
         if len(self._stack) == 1 and name == self._grammar.stop_at:
             self.stopped = True
