@@ -1,0 +1,3 @@
+# One pass per call, no handle object, references left unresolved
+
+The public API is three plain functions (`read_header`, `iter_variables`, `read`). Each makes exactly one pass over the source. There is no stateful handle object (e.g. `mdxml.open(src).variables`), and parsed objects keep references (`declaredType`, `unit`, Model Structure indexes and value references) exactly as written instead of resolving them to objects. A handle would have to re-read the source for each access, which one-shot upload streams can't do. Resolving references automatically would force every Model Variable to be held in memory, which breaks streaming. Callers who want links followed use small lookup helpers such as `header.type_definitions[name]` and `md.variable_by_value_reference(vr)`.

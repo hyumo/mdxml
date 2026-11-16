@@ -1,0 +1,3 @@
+# Lenient parsing by default, `strict=True` as an option
+
+Even though the FMI XSDs define the data model, the parser by default ignores unknown elements and attributes, keeps out-of-range values of fixed-choice attributes as plain strings, and raises only when a required value can't be built. Many FMUs produced by real tools break the schema in small ways, and rejecting them would make the library useless for processing FMUs in bulk. `strict=True` additionally raises on unknown elements and attributes and on missing required ones. Security checks (no `DOCTYPE` or entities, `max_xml_bytes`) apply in both modes.
