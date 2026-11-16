@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from types import MappingProxyType
 
 from mdxml import _convert as c
 from mdxml._grammar import SKIP, Builder, ChildRule, Collect, Grammar
+from mdxml._lookup import Named
 from mdxml._schema import (
     Attr,
     AttrTable,
@@ -352,10 +353,17 @@ class ModelHeader:
     model_exchange: ModelExchange | None = None
     co_simulation: CoSimulation | None = None
     scheduled_execution: ScheduledExecution | None = None
-    unit_definitions: tuple[Unit, ...] = ()
-    type_definitions: tuple[TypeDefinition, ...] = ()
-    log_categories: tuple[Category, ...] = ()
+    unit_definitions: Named[Unit] = field(default_factory=Named)
+    type_definitions: Named[TypeDefinition] = field(default_factory=Named)
+    log_categories: Named[Category] = field(default_factory=Named)
     default_experiment: DefaultExperiment | None = None
+
+    def __post_init__(self) -> None:
+        """Accept plain tuples for the definition lists, so headers can be built by hand."""
+        for name in ("unit_definitions", "type_definitions", "log_categories"):
+            value = getattr(self, name)
+            if not isinstance(value, Named):
+                object.__setattr__(self, name, Named(value))
 
 
 # --- Attribute tables -----------------------------------------------------------------------
@@ -544,9 +552,9 @@ def build_header(frame: Frame, *, strict: bool) -> ModelHeader:
         model_exchange=frame.one("ModelExchange", strict=strict),
         co_simulation=frame.one("CoSimulation", strict=strict),
         scheduled_execution=frame.one("ScheduledExecution", strict=strict),
-        unit_definitions=frame.one("UnitDefinitions", strict=strict) or (),
-        type_definitions=frame.one("TypeDefinitions", strict=strict) or (),
-        log_categories=frame.one("LogCategories", strict=strict) or (),
+        unit_definitions=Named(frame.one("UnitDefinitions", strict=strict) or ()),
+        type_definitions=Named(frame.one("TypeDefinitions", strict=strict) or ()),
+        log_categories=Named(frame.one("LogCategories", strict=strict) or ()),
         default_experiment=frame.one("DefaultExperiment", strict=strict),
     )
 

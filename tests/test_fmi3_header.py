@@ -12,6 +12,7 @@ import pytest
 
 import mdxml
 from mdxml import ParseError, Source, UnsupportedFmiVersion, fmi3, to_dict
+from mdxml._lookup import Named
 from mdxml.fmi3 import (
     BaseUnit,
     BinaryType,
@@ -117,65 +118,69 @@ def test_full_header_fixture() -> None:
             provides_adjoint_derivatives=True,
             provides_per_element_dependencies=True,
         ),
-        unit_definitions=(
-            Unit(
-                name="degC",
-                base_unit=BaseUnit(kg=1, m=2, s=-3, A=-1, K=1, mol=2, cd=3, rad=4, factor=1.5, offset=273.15),
-                display_units=(
-                    DisplayUnit(name="degF", factor=1.8, offset=32.0),
-                    DisplayUnit(name="1/K", inverse=True),
+        unit_definitions=Named(
+            (
+                Unit(
+                    name="degC",
+                    base_unit=BaseUnit(kg=1, m=2, s=-3, A=-1, K=1, mol=2, cd=3, rad=4, factor=1.5, offset=273.15),
+                    display_units=(
+                        DisplayUnit(name="degF", factor=1.8, offset=32.0),
+                        DisplayUnit(name="1/K", inverse=True),
+                    ),
                 ),
-            ),
-            Unit(name="dimensionless"),
+                Unit(name="dimensionless"),
+            )
         ),
-        type_definitions=(
-            Float32Type(
-                name="F32",
-                description="single",
-                quantity="Q",
-                unit="degC",
-                display_unit="degF",
-                relative_quantity=True,
-                unbounded=True,
-                min=-1.5,
-                max=1.5,
-                nominal=0.5,
-            ),
-            Float64Type(name="F64", min=-math.inf, max=1e300, nominal=2.0),
-            Int8Type(name="I8", quantity="Q", min=-128, max=127),
-            UInt8Type(name="U8", min=0, max=255),
-            Int16Type(name="I16", min=-32768, max=32767),
-            UInt16Type(name="U16", min=0, max=65535),
-            Int32Type(name="I32", min=-(2**31), max=2**31 - 1),
-            UInt32Type(name="U32", min=0, max=2**32 - 1),
-            Int64Type(name="I64", min=-(2**63), max=2**63 - 1),
-            UInt64Type(name="U64", min=0, max=2**64 - 1),
-            BooleanType(name="B", description="a flag"),
-            StringType(name="S"),
-            BinaryType(name="Bin", mime_type="image/png", max_size=1024),
-            EnumerationType(
-                name="Mode",
-                description="Operating mode",
-                quantity="Mode",
-                min=0,
-                max=1,
-                items=(Item(name="off", value=0, description="Switched off"), Item(name="on", value=1)),
-            ),
-            ClockType(
-                name="Clk",
-                description="a clock",
-                can_be_deactivated=True,
-                priority=2,
-                interval_variability=IntervalVariability.COUNTDOWN,
-                interval_decimal=0.1,
-                shift_decimal=0.05,
-                supports_fraction=True,
-                resolution=1000,
-                interval_counter=100,
-                shift_counter=50,
-            ),
+        type_definitions=Named(
+            (
+                Float32Type(
+                    name="F32",
+                    description="single",
+                    quantity="Q",
+                    unit="degC",
+                    display_unit="degF",
+                    relative_quantity=True,
+                    unbounded=True,
+                    min=-1.5,
+                    max=1.5,
+                    nominal=0.5,
+                ),
+                Float64Type(name="F64", min=-math.inf, max=1e300, nominal=2.0),
+                Int8Type(name="I8", quantity="Q", min=-128, max=127),
+                UInt8Type(name="U8", min=0, max=255),
+                Int16Type(name="I16", min=-32768, max=32767),
+                UInt16Type(name="U16", min=0, max=65535),
+                Int32Type(name="I32", min=-(2**31), max=2**31 - 1),
+                UInt32Type(name="U32", min=0, max=2**32 - 1),
+                Int64Type(name="I64", min=-(2**63), max=2**63 - 1),
+                UInt64Type(name="U64", min=0, max=2**64 - 1),
+                BooleanType(name="B", description="a flag"),
+                StringType(name="S"),
+                BinaryType(name="Bin", mime_type="image/png", max_size=1024),
+                EnumerationType(
+                    name="Mode",
+                    description="Operating mode",
+                    quantity="Mode",
+                    min=0,
+                    max=1,
+                    items=(Item(name="off", value=0, description="Switched off"), Item(name="on", value=1)),
+                ),
+                ClockType(
+                    name="Clk",
+                    description="a clock",
+                    can_be_deactivated=True,
+                    priority=2,
+                    interval_variability=IntervalVariability.COUNTDOWN,
+                    interval_decimal=0.1,
+                    shift_decimal=0.05,
+                    supports_fraction=True,
+                    resolution=1000,
+                    interval_counter=100,
+                    shift_counter=50,
+                ),
+            )
         ),
-        log_categories=(Category(name="logAll", description="Everything"), Category(name="logNone")),
+        log_categories=Named((Category(name="logAll", description="Everything"), Category(name="logNone"))),
         default_experiment=DefaultExperiment(start_time=0.5, stop_time=10.0, tolerance=1e-6, step_size=0.01),
     )
 

@@ -32,6 +32,8 @@ from mdxml.fmi3._header import (
     Unit,
     VariableNamingConvention,
 )
+from mdxml.fmi3._model import ModelDescription
+from mdxml.fmi3._structure import DependenciesKind, ModelStructure, Unknown
 from mdxml.fmi3._variables import (
     AbstractVariable,
     Alias,
@@ -75,6 +77,7 @@ __all__ = [
     "ClockVariable",
     "CoSimulation",
     "DefaultExperiment",
+    "DependenciesKind",
     "Dimension",
     "DisplayUnit",
     "EnumerationType",
@@ -94,8 +97,10 @@ __all__ = [
     "Int64Variable",
     "IntervalVariability",
     "Item",
+    "ModelDescription",
     "ModelExchange",
     "ModelHeader",
+    "ModelStructure",
     "ScheduledExecution",
     "StringType",
     "StringVariable",
@@ -109,6 +114,7 @@ __all__ = [
     "UInt64Type",
     "UInt64Variable",
     "Unit",
+    "Unknown",
     "Variability",
     "Variable",
     "VariableNamingConvention",

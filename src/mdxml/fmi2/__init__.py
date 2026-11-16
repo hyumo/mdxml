@@ -20,6 +20,8 @@ from mdxml.fmi2._header import (
     Unit,
     VariableNamingConvention,
 )
+from mdxml.fmi2._model import ModelDescription
+from mdxml.fmi2._structure import DependenciesKind, ModelStructure, Unknown
 from mdxml.fmi2._variables import (
     BooleanVariable,
     Causality,
@@ -42,6 +44,7 @@ __all__ = [
     "Causality",
     "CoSimulation",
     "DefaultExperiment",
+    "DependenciesKind",
     "DisplayUnit",
     "EnumerationType",
     "EnumerationVariable",
@@ -49,8 +52,10 @@ __all__ = [
     "IntegerType",
     "IntegerVariable",
     "Item",
+    "ModelDescription",
     "ModelExchange",
     "ModelHeader",
+    "ModelStructure",
     "RealType",
     "RealVariable",
     "ScalarVariable",
@@ -58,6 +63,7 @@ __all__ = [
     "StringVariable",
     "TypeDefinition",
     "Unit",
+    "Unknown",
     "Variability",
     "Variable",
     "VariableNamingConvention",
