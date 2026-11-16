@@ -20,13 +20,14 @@ from typing import Any
 from mdxml import _reader
 from mdxml._errors import ParseError
 from mdxml._grammar import Grammar, TreeHandler
-from mdxml._header import AnyModelHeader, choose_header_grammar
+from mdxml._header import AnyModelHeader, header_grammar_chooser
 from mdxml._schema import Frame
 from mdxml._source import Source, open_source
 from mdxml.fmi2 import _structure as fmi2_structure
 from mdxml.fmi2 import _variables as fmi2_variables
 from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
 from mdxml.fmi2._variables import Variable as Fmi2Variable
+from mdxml.fmi3 import _annotations as fmi3_annotations
 from mdxml.fmi3 import _structure as fmi3_structure
 from mdxml.fmi3 import _variables as fmi3_variables
 from mdxml.fmi3._variables import Variable as Fmi3Variable
@@ -42,6 +43,7 @@ Selector = str | Iterable[str] | None
 
 MODEL_VARIABLES = "ModelVariables"
 MODEL_STRUCTURE = "ModelStructure"
+ANNOTATIONS = "Annotations"
 
 
 def _selector(value: Selector) -> frozenset[str] | None:
@@ -78,27 +80,35 @@ class VariableFilter:
 
 
 class _VariablesHandler:
-    """Builds the Model Header, then each Model Variable as its element closes."""
+    """Builds the Model Header, then each Model Variable as its element closes.
+
+    With ``read_structure`` (used by :func:`mdxml.read`) it keeps going after
+    ``</ModelVariables>`` and builds the root's remaining children it has a
+    grammar for: the Model Structure and, with ``annotations``, FMI 3's
+    model-level ``<Annotations>``.
+    """
 
     __slots__ = (
-        "_after_model_structure",
+        "_after_grammars",
+        "_after_handler",
+        "_after_skipped",
         "_after_variables",
+        "_annotations",
         "_filter",
         "_filter_values",
         "_grammars",
         "_header_handler",
-        "_in_structure",
+        "_in_after",
         "_in_variable",
         "_index",
         "_position",
         "_read_structure",
         "_skip_depth",
         "_strict",
-        "_structure_handler",
         "_variable_handler",
+        "after",
         "done",
         "header",
-        "model_structure",
         "pending",
     )
 
@@ -109,23 +119,27 @@ class _VariablesHandler:
         strict: bool,
         variable_filter: VariableFilter,
         read_structure: bool = False,
+        annotations: bool = False,
     ) -> None:
         self._position = position
-        self._read_structure = read_structure
-        self._after_variables = False
-        self._in_structure = False
-        self._structure_handler: TreeHandler[Any] | None = None
-        self._after_model_structure: frozenset[str] = frozenset()
-        self.model_structure: Any = None
         self._strict = strict
+        self._annotations = annotations
+        self._read_structure = read_structure
         self._filter = variable_filter if variable_filter.active else None
-        self._header_handler = TreeHandler(choose_header_grammar, position, strict=strict)
+        self._header_handler = TreeHandler(header_grammar_chooser(annotations=annotations), position, strict=strict)
         self._variable_handler: TreeHandler[Any] | None = None
         self._grammars: Mapping[str, Grammar[Any]] = {}
         self._filter_values: FilterValues = fmi2_variables.filter_values
         self._in_variable = False
         self._index = 0
         self._skip_depth = 0
+        self._after_variables = False
+        self._after_handler: TreeHandler[Any] | None = None
+        self._after_grammars: Mapping[str, Grammar[Any]] = {}
+        self._after_skipped: frozenset[str] = frozenset()
+        self._in_after = False
+        self.after: dict[str, Any] = {}
+        """What was built after ``</ModelVariables>``, keyed by root child element name."""
         self.header: AnyModelHeader | None = None
         self.pending: deque[AnyVariable] = deque()
         self.done = False
@@ -192,34 +206,35 @@ class _VariablesHandler:
         raise _reader.Stop
 
     def _start_after_variables(self, name: str, attrs: dict[str, str]) -> None:
-        """Open an element after ``</ModelVariables>``: only the Model Structure is built."""
-        if self._in_structure:
-            assert self._structure_handler is not None  # noqa: S101 - set on entering ModelVariables
-            self._structure_handler.start(name, attrs)
+        """Open an element after ``</ModelVariables>``."""
+        if self._in_after:
+            assert self._after_handler is not None  # noqa: S101 - set on entering ModelVariables
+            self._after_handler.start(name, attrs)
             return
         # A direct child of the root.
-        if name == MODEL_STRUCTURE and (self.model_structure is None or not self._strict):
-            assert self._structure_handler is not None  # noqa: S101
-            if self.model_structure is None:  # lenient: a second ModelStructure is ignored
-                self._in_structure = True
-                self._structure_handler.reset()
-                self._structure_handler.start(name, attrs)
+        if name in self._after_grammars:
+            if name not in self.after:
+                assert self._after_handler is not None  # noqa: S101
+                self._in_after = True
+                self._after_handler.reset()
+                self._after_handler.start(name, attrs)
                 return
-        elif name in self._after_model_structure:
-            pass  # e.g. FMI 3's trailing <Annotations>: skipped
-        elif self._strict:
+            if self._strict:
+                pos = self._position[0]
+                raise ParseError(f"more than one <{name}> element", line=pos.line, column=pos.column)
+        elif name not in self._after_skipped and self._strict:
             pos = self._position[0]
             raise ParseError(f"unexpected element <{name}> after <{MODEL_VARIABLES}>", line=pos.line, column=pos.column)
-        self._skip_depth = 1
+        self._skip_depth = 1  # a known element not wanted here, or (lenient) a duplicate or unknown one
 
     def _end_after_variables(self, name: str) -> None:
         """Close an element after ``</ModelVariables>``; the root closing ends the document."""
-        if self._in_structure:
-            assert self._structure_handler is not None  # noqa: S101
-            self._structure_handler.end(name)
-            if self._structure_handler.result is not None:
-                self.model_structure = self._structure_handler.result
-                self._in_structure = False
+        if self._in_after:
+            assert self._after_handler is not None  # noqa: S101
+            self._after_handler.end(name)
+            if self._after_handler.result is not None:
+                self.after[name] = self._after_handler.result
+                self._in_after = False
             return
         self.done = True
         raise _reader.Stop
@@ -231,23 +246,38 @@ class _VariablesHandler:
         return self.header
 
     def _enter_model_variables(self, header: AnyModelHeader) -> None:
-        structure_grammar: Grammar[Any]
+        after: dict[str, Grammar[Any]]
         if isinstance(header, Fmi2ModelHeader):
-            self._grammars = fmi2_variables.VARIABLE_GRAMMARS
+            self._grammars = (
+                fmi2_variables.VARIABLE_GRAMMARS_WITH_ANNOTATIONS
+                if self._annotations
+                else fmi2_variables.VARIABLE_GRAMMARS
+            )
             self._filter_values = fmi2_variables.filter_values
-            structure_grammar = fmi2_structure.STRUCTURE_GRAMMAR
-            self._after_model_structure = fmi2_structure.AFTER_MODEL_STRUCTURE
+            after = {MODEL_STRUCTURE: fmi2_structure.STRUCTURE_GRAMMAR}
+            known_after = fmi2_structure.AFTER_MODEL_STRUCTURE
         else:
-            self._grammars = fmi3_variables.VARIABLE_GRAMMARS
+            self._grammars = (
+                fmi3_variables.VARIABLE_GRAMMARS_WITH_ANNOTATIONS
+                if self._annotations
+                else fmi3_variables.VARIABLE_GRAMMARS
+            )
             self._filter_values = fmi3_variables.filter_values
-            structure_grammar = fmi3_structure.STRUCTURE_GRAMMAR
-            self._after_model_structure = fmi3_structure.AFTER_MODEL_STRUCTURE
+            after = {MODEL_STRUCTURE: fmi3_structure.STRUCTURE_GRAMMAR}
+            if self._annotations:
+                after[ANNOTATIONS] = fmi3_annotations.MODEL_ANNOTATIONS_GRAMMAR
+            known_after = fmi3_structure.AFTER_MODEL_STRUCTURE
         self._variable_handler = TreeHandler(self._choose_variable_grammar, self._position, strict=self._strict)
         if self._read_structure:
-            self._structure_handler = TreeHandler(lambda _: structure_grammar, self._position, strict=self._strict)
+            self._after_grammars = after
+            self._after_skipped = known_after - after.keys()
+            self._after_handler = TreeHandler(self._choose_after_grammar, self._position, strict=self._strict)
 
     def _choose_variable_grammar(self, root: Frame) -> Grammar[Any]:
         return self._grammars[root.tag]
+
+    def _choose_after_grammar(self, root: Frame) -> Grammar[Any]:
+        return self._after_grammars[root.tag]
 
 
 class VariableIterator:
@@ -269,6 +299,7 @@ class VariableIterator:
         max_xml_bytes: int,
         variable_filter: VariableFilter,
         read_structure: bool = False,
+        annotations: bool = False,
     ) -> None:
         """Prepare the iterator; nothing is read until it's used."""
         self._src = src
@@ -277,7 +308,11 @@ class VariableIterator:
         self._max_xml_bytes = max_xml_bytes
         self._position: list[_reader.Position] = []
         self._handler = _VariablesHandler(
-            self._position, strict=strict, variable_filter=variable_filter, read_structure=read_structure
+            self._position,
+            strict=strict,
+            variable_filter=variable_filter,
+            read_structure=read_structure,
+            annotations=annotations,
         )
         self._resources = ExitStack()
         self._steps: Generator[None, None, None] | None = None
@@ -306,7 +341,12 @@ class VariableIterator:
     @property
     def model_structure(self) -> Any:
         """The Model Structure, once iteration has finished (only when created by :func:`mdxml.read`)."""
-        return self._handler.model_structure
+        return self._handler.after.get(MODEL_STRUCTURE)
+
+    @property
+    def model_annotations(self) -> Any:
+        """FMI 3's model-level annotations, once iteration has finished (only via :func:`mdxml.read`)."""
+        return self._handler.after.get(ANNOTATIONS)
 
     def close(self) -> None:
         """Stop reading and close the source."""
@@ -352,6 +392,7 @@ def iter_variables(
     name_prefix: str | None = None,
     member: str | None = None,
     strict: bool = False,
+    annotations: bool = False,
     max_xml_bytes: int = _reader.DEFAULT_MAX_XML_BYTES,
 ) -> VariableIterator:
     """Stream an FMU's Model Variables one at a time, in file order.
@@ -365,6 +406,10 @@ def iter_variables(
     raw attributes before a variable is built, so skipped variables cost
     almost nothing; Variable Indexes still count every variable.
 
+    With ``annotations=True``, each variable's ``annotations`` holds its Tool
+    Annotations as raw XML (and so does an FMI 2 header's
+    ``vendor_annotations``); otherwise they're skipped and left as ``None``.
+
     The returned iterator's ``.header`` is the Model Header from the same pass.
     """
     _reader.check_max_xml_bytes(max_xml_bytes)
@@ -372,5 +417,10 @@ def iter_variables(
         raise FileNotFoundError(f"no such file or directory: {os.fspath(src)!r}")
     variable_filter = VariableFilter(causality=causality, variability=variability, name_prefix=name_prefix)
     return VariableIterator(
-        src, member=member, strict=strict, max_xml_bytes=max_xml_bytes, variable_filter=variable_filter
+        src,
+        member=member,
+        strict=strict,
+        max_xml_bytes=max_xml_bytes,
+        variable_filter=variable_filter,
+        annotations=annotations,
     )

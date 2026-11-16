@@ -25,6 +25,11 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
         help="raise on anything the FMI XSD doesn't allow, instead of ignoring it",
     )
     parser.add_argument(
+        "--annotations",
+        action="store_true",
+        help="keep Tool Annotations as raw XML instead of skipping them",
+    )
+    parser.add_argument(
         "--max-xml-bytes",
         type=int,
         default=DEFAULT_MAX_XML_BYTES,
@@ -48,7 +53,13 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _print_header(args: argparse.Namespace) -> None:
-    header = read_header(args.path, member=args.member, strict=args.strict, max_xml_bytes=args.max_xml_bytes)
+    header = read_header(
+        args.path,
+        member=args.member,
+        strict=args.strict,
+        annotations=args.annotations,
+        max_xml_bytes=args.max_xml_bytes,
+    )
     json.dump(to_dict(header), sys.stdout, indent=2, ensure_ascii=False, allow_nan=False)
     sys.stdout.write("\n")
 
@@ -61,6 +72,7 @@ def _print_variables(args: argparse.Namespace) -> None:
         name_prefix=args.name_prefix,
         member=args.member,
         strict=args.strict,
+        annotations=args.annotations,
         max_xml_bytes=args.max_xml_bytes,
     )
     with variables:

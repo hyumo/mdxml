@@ -24,6 +24,8 @@ from typing import Any
 from mdxml import _convert as c
 from mdxml._grammar import SKIP, Builder, ChildRule, Grammar
 from mdxml._schema import Attr, AttrTable, Frame, attributes, double, flag, required_text, table, text
+from mdxml.fmi3 import _annotations as annotations_rule
+from mdxml.fmi3._annotations import Annotation
 from mdxml.fmi3._header import IntervalVariability
 
 # --- Enums ----------------------------------------------------------------------------------
@@ -150,6 +152,8 @@ class AbstractVariable:
     """Value references of the clocks this variable belongs to."""
     declared_type: str | None = None
     aliases: tuple[Alias, ...] = ()
+    annotations: tuple[Annotation, ...] | None = None
+    """``None`` unless read with ``annotations=True``."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -489,11 +493,14 @@ def _shape_start(frame: Frame, values: tuple[Any, ...], *, is_array: bool, stric
 class _VariableBuilder(Builder[VariableFields]):
     """Builds one variable element into its class and constructor arguments."""
 
-    __slots__ = ("_attrs", "_cls", "_start_children")
+    __slots__ = ("_annotations", "_attrs", "_cls", "_start_children")
 
-    def __init__(self, cls: type[AbstractVariable], attrs: AttrTable, *, start_children: bool = False) -> None:
+    def __init__(
+        self, cls: type[AbstractVariable], attrs: AttrTable, *, annotations: bool, start_children: bool = False
+    ) -> None:
         self._cls = cls
         self._attrs = attrs
+        self._annotations = annotations
         self._start_children = start_children
 
     def __call__(self, frame: Frame, /, *, strict: bool) -> VariableFields:
@@ -505,6 +512,8 @@ class _VariableBuilder(Builder[VariableFields]):
         aliases = frame.all("Alias")
         if aliases:
             fields["aliases"] = tuple(aliases)
+        if self._annotations:
+            fields["annotations"] = frame.one("Annotations", strict=strict) or ()
         if self._cls is ClockVariable:
             return self._cls, fields
         dimensions = tuple(frame.all("Dimension"))
@@ -517,18 +526,25 @@ class _VariableBuilder(Builder[VariableFields]):
         return self._cls, fields
 
 
-def _variable_grammar(tag: str, builder: _VariableBuilder, start_attrs: AttrTable | None) -> Grammar[VariableFields]:
-    children: dict[str, ChildRule] = {"Annotations": SKIP}
+def _variable_grammar(
+    tag: str, builder: _VariableBuilder, start_attrs: AttrTable | None, *, annotations: bool
+) -> Grammar[VariableFields]:
+    children: dict[str, ChildRule] = {"Annotations": annotations_rule.CONTAINER if annotations else SKIP}
     alias_attrs = FLOAT_ALIAS_ATTRS if tag in _FLOAT_ELEMENTS else ALIAS_ATTRS
     children["Alias"] = _Part(Alias, alias_attrs)
     if tag != "Clock":
         children["Dimension"] = _Part(Dimension, DIMENSION_ATTRS)
     if start_attrs is not None:
         children["Start"] = _StartValue(start_attrs)
-    return Grammar(root=tag, stop_at="", build_root=builder, children={tag: children})
+    return Grammar(
+        root=tag,
+        stop_at="",
+        build_root=builder,
+        children={tag: children, "Annotations": {"Annotation": annotations_rule.ANNOTATION}},
+    )
 
 
-def _grammars() -> Mapping[str, Grammar[VariableFields]]:
+def _grammars(*, annotations: bool) -> Mapping[str, Grammar[VariableFields]]:
     integer_kinds: dict[str, tuple[type[AbstractVariable], c.IntRange]] = {
         "Int8": (Int8Variable, c.BYTE),
         "UInt8": (UInt8Variable, c.UNSIGNED_BYTE),
@@ -541,22 +557,37 @@ def _grammars() -> Mapping[str, Grammar[VariableFields]]:
     }
     float_attrs = _float_attrs()
     builders: dict[str, tuple[_VariableBuilder, AttrTable | None]] = {
-        "Float32": (_VariableBuilder(Float32Variable, float_attrs), None),
-        "Float64": (_VariableBuilder(Float64Variable, float_attrs), None),
-        **{tag: (_VariableBuilder(cls, _integer_attrs(bounds)), None) for tag, (cls, bounds) in integer_kinds.items()},
-        "Boolean": (_VariableBuilder(BooleanVariable, BOOLEAN_ATTRS), None),
-        "String": (_VariableBuilder(StringVariable, STRING_ATTRS, start_children=True), STRING_START_ATTRS),
-        "Binary": (_VariableBuilder(BinaryVariable, BINARY_ATTRS, start_children=True), BINARY_START_ATTRS),
-        "Enumeration": (_VariableBuilder(EnumerationVariable, ENUMERATION_ATTRS), None),
-        "Clock": (_VariableBuilder(ClockVariable, CLOCK_ATTRS), None),
+        "Float32": (_VariableBuilder(Float32Variable, float_attrs, annotations=annotations), None),
+        "Float64": (_VariableBuilder(Float64Variable, float_attrs, annotations=annotations), None),
+        **{
+            tag: (_VariableBuilder(cls, _integer_attrs(bounds), annotations=annotations), None)
+            for tag, (cls, bounds) in integer_kinds.items()
+        },
+        "Boolean": (_VariableBuilder(BooleanVariable, BOOLEAN_ATTRS, annotations=annotations), None),
+        "String": (
+            _VariableBuilder(StringVariable, STRING_ATTRS, annotations=annotations, start_children=True),
+            STRING_START_ATTRS,
+        ),
+        "Binary": (
+            _VariableBuilder(BinaryVariable, BINARY_ATTRS, annotations=annotations, start_children=True),
+            BINARY_START_ATTRS,
+        ),
+        "Enumeration": (_VariableBuilder(EnumerationVariable, ENUMERATION_ATTRS, annotations=annotations), None),
+        "Clock": (_VariableBuilder(ClockVariable, CLOCK_ATTRS, annotations=annotations), None),
     }
     return MappingProxyType(
-        {tag: _variable_grammar(tag, builder, start_attrs) for tag, (builder, start_attrs) in builders.items()}
+        {
+            tag: _variable_grammar(tag, builder, start_attrs, annotations=annotations)
+            for tag, (builder, start_attrs) in builders.items()
+        }
     )
 
 
-VARIABLE_GRAMMARS = _grammars()
-"""The grammar for each variable element, keyed by element name."""
+VARIABLE_GRAMMARS = _grammars(annotations=False)
+"""The grammar for each variable element, keyed by element name; annotations are skipped."""
+
+VARIABLE_GRAMMARS_WITH_ANNOTATIONS = _grammars(annotations=True)
+"""The same, keeping each variable's annotations."""
 
 
 def filter_values(element: str, attrs: Mapping[str, str]) -> tuple[str, str]:

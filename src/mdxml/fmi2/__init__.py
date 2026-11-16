@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mdxml.fmi2._annotations import ToolAnnotation
 from mdxml.fmi2._header import (
     BaseUnit,
     BooleanType,
@@ -61,6 +62,7 @@ __all__ = [
     "ScalarVariable",
     "StringType",
     "StringVariable",
+    "ToolAnnotation",
     "TypeDefinition",
     "Unit",
     "Unknown",

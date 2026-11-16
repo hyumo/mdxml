@@ -9,6 +9,7 @@ skipped with their whole subtree, or raise with ``strict=True``.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -38,7 +39,45 @@ class _Skip:
 SKIP = _Skip()
 """Marks a known child element whose subtree is deliberately not parsed (e.g. annotations)."""
 
-ChildRule = Builder[object] | _Skip
+
+class RawBuilder(Protocol[R_co]):
+    """Builds an element from its frame (attributes only) and its raw inner XML."""
+
+    def __call__(self, frame: Frame, xml: str, /, *, strict: bool) -> R_co: ...
+
+
+class Raw:
+    """Marks a child element kept as raw XML: its attributes are parsed, its content is not.
+
+    The content is the document's original bytes between the start and end tags,
+    decoded as UTF-8 (which FMI requires), so it can be parsed again later.
+    """
+
+    __slots__ = ("build",)
+
+    def __init__(self, build: RawBuilder[object]) -> None:
+        self.build = build
+
+
+ChildRule = Builder[object] | _Skip | Raw
+
+
+_QUOTES = (ord('"'), ord("'"))
+_TAG_END = ord(">")
+
+
+def _start_tag_length(data: bytes) -> int:
+    """Return the length of the start tag at the beginning of ``data``, up to and including its ``>``."""
+    quote = 0
+    for i, byte in enumerate(data):
+        if quote:
+            if byte == quote:
+                quote = 0
+        elif byte in _QUOTES:
+            quote = byte
+        elif byte == _TAG_END:
+            return i + 1
+    raise ParseError("start tag isn't complete")  # pragma: no cover - expat reports a start tag only once it's whole
 
 
 class Collect:
@@ -77,7 +116,18 @@ class Grammar(Generic[R_co]):
 class TreeHandler(Generic[R]):
     """Expat handler that builds the root object of a :class:`Grammar`."""
 
-    __slots__ = ("_choose", "_grammar", "_position", "_skip_depth", "_stack", "_strict", "result", "stopped")
+    __slots__ = (
+        "_choose",
+        "_grammar",
+        "_position",
+        "_raw",
+        "_raw_depth",
+        "_skip_depth",
+        "_stack",
+        "_strict",
+        "result",
+        "stopped",
+    )
 
     def __init__(
         self,
@@ -93,6 +143,9 @@ class TreeHandler(Generic[R]):
         self._strict = strict
         self._stack: list[Frame] = []
         self._skip_depth = 0
+        self._raw: tuple[Frame, Raw, int, bool] | None = None
+        """While a :class:`Raw` element is open: its frame, rule, content start and whether it's empty."""
+        self._raw_depth = 0
         self.result: R | None = None
         self.stopped = False
 
@@ -111,6 +164,10 @@ class TreeHandler(Generic[R]):
         self._grammar = None
         self._stack.clear()
         self._skip_depth = 0
+        if self._raw is not None:
+            self._position[0].release()
+        self._raw = None
+        self._raw_depth = 0
         self.result = None
         self.stopped = False
 
@@ -118,6 +175,9 @@ class TreeHandler(Generic[R]):
         """Open an element."""
         if self._skip_depth:
             self._skip_depth += 1
+            return
+        if self._raw_depth:
+            self._raw_depth += 1
             return
         pos = self._position[0]
         frame = Frame(name, attrs, pos.line, pos.column)
@@ -140,12 +200,42 @@ class TreeHandler(Generic[R]):
         if isinstance(rule, _Skip):
             self._skip_depth = 1
             return
+        if isinstance(rule, Raw):
+            self._start_raw(frame, rule)
+            return
         self._stack.append(frame)
+
+    def _start_raw(self, frame: Frame, rule: Raw) -> None:
+        pos = self._position[0]
+        start = pos.byte_index
+        pos.keep_from(start)
+        tag_length = _start_tag_length(pos.kept(start, sys.maxsize))
+        self_closing = pos.kept(start + tag_length - 2, start + tag_length) == b"/>"
+        self._raw = (frame, rule, start + tag_length, self_closing)
+        self._raw_depth = 1
+
+    def _end_raw(self) -> None:
+        assert self._raw is not None  # noqa: S101 - only called while a Raw element is open
+        frame, rule, content_start, self_closing = self._raw
+        pos = self._position[0]
+        content = b"" if self_closing else pos.kept(content_start, pos.byte_index)
+        pos.release()
+        self._raw = None
+        try:
+            xml = content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise frame.error(f"<{frame.tag}> content isn't valid UTF-8: {exc}") from None
+        self._stack[-1].children.append((frame.tag, rule.build(frame, xml, strict=self._strict)))
 
     def end(self, name: str) -> None:
         """Close an element and build its object."""
         if self._skip_depth:
             self._skip_depth -= 1
+            return
+        if self._raw_depth:
+            self._raw_depth -= 1
+            if not self._raw_depth:
+                self._end_raw()
             return
         assert self._grammar is not None  # noqa: S101 - start() always sets it first
         frame = self._stack.pop()
@@ -154,7 +244,7 @@ class TreeHandler(Generic[R]):
             return
         parent = self._stack[-1]
         rule = self._grammar.children[parent.tag][frame.tag]
-        assert not isinstance(rule, _Skip)  # noqa: S101 - skipped elements never get a frame
+        assert not isinstance(rule, _Skip | Raw)  # noqa: S101 - skipped and raw elements never get a frame
         parent.children.append((frame.tag, rule(frame, strict=self._strict)))
 
     def finish(self) -> R:

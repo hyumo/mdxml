@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from mdxml.fmi3._annotations import Annotation
 from mdxml.fmi3._header import ModelHeader
 from mdxml.fmi3._structure import ModelStructure
 from mdxml.fmi3._variables import Variable
@@ -22,6 +23,8 @@ class ModelDescription:
     header: ModelHeader
     variables: tuple[Variable, ...] = ()
     model_structure: ModelStructure = field(default_factory=ModelStructure)
+    annotations: tuple[Annotation, ...] | None = None
+    """The model-level ``<Annotations>``; ``None`` unless read with ``annotations=True``."""
 
     _by_name: Mapping[str, Variable] = field(init=False, repr=False, compare=False)
     _by_value_reference: Mapping[int, Variable] = field(init=False, repr=False, compare=False)

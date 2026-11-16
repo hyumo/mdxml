@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mdxml.fmi3._annotations import Annotation
 from mdxml.fmi3._header import (
     BaseUnit,
     BinaryType,
@@ -65,6 +66,7 @@ from mdxml.fmi3._variables import (
 __all__ = [
     "AbstractVariable",
     "Alias",
+    "Annotation",
     "ArrayableVariable",
     "BaseUnit",
     "BinaryType",
