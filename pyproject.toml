@@ -24,6 +24,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[project.urls]
+Homepage = "https://github.com/hyumo/mdxml"
+Issues = "https://github.com/hyumo/mdxml/issues"
+Changelog = "https://github.com/hyumo/mdxml/blob/master/CHANGELOG.md"
+
 [project.scripts]
 mdxml = "mdxml:main"
 
