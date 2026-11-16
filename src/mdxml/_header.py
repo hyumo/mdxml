@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import os
-
 from mdxml import _reader
 from mdxml._errors import ParseError, UnsupportedFmiVersion
+from mdxml._source import Source, open_source
 from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
 from mdxml.fmi2._header import build_header as build_fmi2_header
 
@@ -52,15 +51,20 @@ class _HeaderHandler:
             raise UnsupportedFmiVersion(fmi_version)
 
 
-def read_header(src: str | os.PathLike[str]) -> Fmi2ModelHeader:
-    """Read the Model Header from a ``modelDescription.xml`` file.
+def read_header(src: Source, *, member: str | None = None) -> Fmi2ModelHeader:
+    """Read the Model Header of an FMU.
+
+    ``src`` is a path to a ``.fmu`` zip, an unzipped FMU directory or a
+    ``modelDescription.xml`` file; a binary file-like object; or bytes. Zips
+    are recognised by their content, not their extension. ``member`` overrides
+    where the Model Description lives inside a zip or directory.
 
     Parsing stops at ``<ModelVariables>``, so the cost doesn't depend on how
     many Model Variables the FMU has.
     """
     position: list[_reader.Position] = []
     handler = _HeaderHandler(position)
-    with open(src, "rb") as stream:
+    with open_source(src, member) as stream:
         _reader.run(stream, handler, position)
     if handler.header is None:  # pragma: no cover - expat rejects documents without a root
         raise ParseError(f"no <{ROOT}> element found")

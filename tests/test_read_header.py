@@ -151,6 +151,15 @@ def test_parsing_stops_before_reading_the_rest_of_a_large_file(tmp_path: Path) -
             read_bytes.append(len(data))
             return data
 
+        def seekable(self) -> bool:
+            return True
+
+        def tell(self) -> int:
+            return self._f.tell()
+
+        def seek(self, offset: int, whence: int = 0) -> int:
+            return self._f.seek(offset, whence)
+
         def __enter__(self) -> CountingReads:
             return self
 
@@ -162,11 +171,11 @@ def test_parsing_stops_before_reading_the_rest_of_a_large_file(tmp_path: Path) -
         return CountingReads(file)
 
     with pytest.MonkeyPatch.context() as mp:
-        mp.setattr("mdxml._header.open", counting_open, raising=False)
+        mp.setattr("mdxml._source.open", counting_open, raising=False)
         read_header(path)
 
     assert path.stat().st_size > 1_000_000
-    assert sum(read_bytes) <= 64 * 1024
+    assert sum(read_bytes) <= 64 * 1024 + 4  # one chunk, plus the 4 bytes sniffed for zip magic
 
 
 # --- Errors ---------------------------------------------------------------------------------
