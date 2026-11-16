@@ -16,6 +16,18 @@ between minor versions.
   (`ModelExchange`, `CoSimulation`) with their source files, unit definitions,
   type definitions, log categories and the default experiment, with XSD
   defaults applied. Vendor annotations are skipped.
+- `mdxml.iter_variables(src)` streams FMI 2.0 Model Variables one at a time
+  with flat memory, stopping at `</ModelVariables>`. One class per kind
+  (`RealVariable`, `IntegerVariable`, `BooleanVariable`, `StringVariable`,
+  `EnumerationVariable`, all `ScalarVariable`s) with the typed child's
+  attributes merged in, a `type_name`, the Variable Index, enums for
+  causality, variability and initial, and `effective_initial` from the
+  standard's table. `causality=`, `variability=` and `name_prefix=` filters
+  skip non-matching variables before they're built. The iterator's `.header`
+  is the Model Header from the same pass, and it can be closed early or used
+  as a context manager.
+- `mdxml variables FILE [--causality …] [--variability …] [--name-prefix …]`
+  prints one JSON object per variable.
 - `read_header` returns the full FMI 3.0 Model Header (`mdxml.fmi3.ModelHeader`):
   Interface Types including `ScheduledExecution`, units with `inverse` display
   units, all fifteen type definition kinds (`Float32Type` … `ClockType`), log

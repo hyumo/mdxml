@@ -7,6 +7,7 @@ part a caller asked for is ever read (see ADR 0001).
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from typing import Protocol
 from xml.parsers import expat
 
@@ -82,14 +83,18 @@ def _create_parser() -> expat.XMLParserType:
     return parser
 
 
-def run(
+def feed(
     stream: Readable,
     handler: Handler,
     position_sink: list[Position],
     *,
     max_xml_bytes: int = DEFAULT_MAX_XML_BYTES,
-) -> None:
-    """Parse ``stream`` with ``handler`` until the document ends or the handler raises :class:`Stop`.
+) -> Generator[None, None, None]:
+    """Parse ``stream`` with ``handler`` one chunk at a time, yielding after each chunk.
+
+    This lets a caller hand out what the handler built from each chunk before
+    reading more, so memory stays bounded by the chunk size. The generator
+    ends when the document ends or the handler raises :class:`Stop`.
 
     ``position_sink`` receives the live parser position before parsing starts,
     so the handler can attach line and column to its own errors. At most
@@ -108,6 +113,7 @@ def run(
             if total > max_xml_bytes:
                 raise UnsafeInput(f"Model Description is larger than max_xml_bytes={max_xml_bytes}")
             parser.Parse(chunk, False)  # noqa: FBT003 - expat only accepts isfinal positionally
+            yield
         parser.Parse(b"", True)  # noqa: FBT003
     except Stop:
         return
@@ -117,3 +123,15 @@ def run(
             line=exc.lineno,
             column=exc.offset + 1,
         ) from None
+
+
+def run(
+    stream: Readable,
+    handler: Handler,
+    position_sink: list[Position],
+    *,
+    max_xml_bytes: int = DEFAULT_MAX_XML_BYTES,
+) -> None:
+    """Parse ``stream`` with ``handler`` until the document ends or the handler raises :class:`Stop`."""
+    for _ in feed(stream, handler, position_sink, max_xml_bytes=max_xml_bytes):
+        pass
