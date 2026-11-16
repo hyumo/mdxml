@@ -2,6 +2,40 @@
 
 from __future__ import annotations
 
-from mdxml.fmi2._header import ModelHeader, VariableNamingConvention
+from mdxml.fmi2._header import (
+    BaseUnit,
+    BooleanType,
+    Category,
+    CoSimulation,
+    DefaultExperiment,
+    DisplayUnit,
+    EnumerationType,
+    IntegerType,
+    Item,
+    ModelExchange,
+    ModelHeader,
+    RealType,
+    StringType,
+    TypeDefinition,
+    Unit,
+    VariableNamingConvention,
+)
 
-__all__ = ["ModelHeader", "VariableNamingConvention"]
+__all__ = [
+    "BaseUnit",
+    "BooleanType",
+    "Category",
+    "CoSimulation",
+    "DefaultExperiment",
+    "DisplayUnit",
+    "EnumerationType",
+    "IntegerType",
+    "Item",
+    "ModelExchange",
+    "ModelHeader",
+    "RealType",
+    "StringType",
+    "TypeDefinition",
+    "Unit",
+    "VariableNamingConvention",
+]

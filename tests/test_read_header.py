@@ -13,7 +13,7 @@ import pytest
 
 import mdxml
 from mdxml import ParseError, UnsupportedFmiVersion, read_header, to_dict
-from mdxml.fmi2 import ModelHeader, VariableNamingConvention
+from mdxml.fmi2 import DefaultExperiment, ModelHeader, VariableNamingConvention
 
 REFERENCE_FMUS = Path(__file__).parent / "data" / "reference_fmus"
 FMI2_XMLS = sorted(REFERENCE_FMUS.glob("*/FMI2.xml"))
@@ -42,14 +42,14 @@ def fmi2_xml(
 def test_bouncing_ball_root_attributes() -> None:
     header = read_header(REFERENCE_FMUS / "BouncingBall" / "FMI2.xml")
 
-    assert header == ModelHeader(
-        fmi_version="2.0",
-        model_name="BouncingBall",
-        guid="{1AE5E10D-9521-4DE3-80B9-D0EAAA7D5AF1}",
-        description="This model calculates the trajectory, over time, of a ball dropped from a height of 1 m",
-        generation_tool="Reference FMUs (development build)",
-        number_of_event_indicators=1,
+    assert header.fmi_version == "2.0"
+    assert header.model_name == "BouncingBall"
+    assert header.guid == "{1AE5E10D-9521-4DE3-80B9-D0EAAA7D5AF1}"
+    assert header.description == (
+        "This model calculates the trajectory, over time, of a ball dropped from a height of 1 m"
     )
+    assert header.generation_tool == "Reference FMUs (development build)"
+    assert header.number_of_event_indicators == 1
     assert header.variable_naming_convention is VariableNamingConvention.FLAT
 
 
@@ -96,6 +96,7 @@ def test_all_root_attributes_are_typed(tmp_path: Path) -> None:
         generation_date_and_time=datetime(2026, 11, 16, 8, 30, tzinfo=timezone.utc),
         variable_naming_convention=VariableNamingConvention.STRUCTURED,
         number_of_event_indicators=3,
+        default_experiment=DefaultExperiment(stop_time=1.0),
     )
 
 
@@ -225,12 +226,21 @@ def test_missing_fmi_version(tmp_path: Path) -> None:
         read_header(write_xml(tmp_path, '<fmiModelDescription modelName="M" guid="g"/>'))
 
 
-def test_invalid_typed_value_reports_where(tmp_path: Path) -> None:
+def test_invalid_optional_value_is_dropped_in_lenient_mode(tmp_path: Path) -> None:
+    path = write_xml(tmp_path, fmi2_xml('numberOfEventIndicators="-1" generationDateAndTime="yesterday"'))
+    header = read_header(path)
+    assert header.number_of_event_indicators is None
+    assert header.generation_date_and_time is None
+
+
+def test_invalid_typed_value_reports_where_in_strict_mode(tmp_path: Path) -> None:
     path = write_xml(
-        tmp_path, '<?xml version="1.0"?>\n\n<fmiModelDescription fmiVersion="2.0" numberOfEventIndicators="-1"/>'
+        tmp_path,
+        '<?xml version="1.0"?>\n\n<fmiModelDescription fmiVersion="2.0" modelName="M" guid="g"'
+        ' numberOfEventIndicators="-1"><ModelVariables/></fmiModelDescription>',
     )
     with pytest.raises(ParseError, match="numberOfEventIndicators") as info:
-        read_header(path)
+        read_header(path, strict=True)
     assert info.value.line == 3
 
 
@@ -252,6 +262,10 @@ def test_to_dict_is_json_ready_and_drops_none(tmp_path: Path) -> None:
         "guid": "{G}",
         "generation_date_and_time": "2026-11-16T08:30:00+00:00",
         "variable_naming_convention": "flat",
+        "unit_definitions": [],
+        "type_definitions": [],
+        "log_categories": [],
+        "default_experiment": {"stop_time": 1.0},
     }
     assert json.loads(json.dumps(data)) == data
 

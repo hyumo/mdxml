@@ -12,6 +12,13 @@ between minor versions.
 - `mdxml.read_header(path)` reads the root attributes of an FMI 2.0 Model
   Header from a `modelDescription.xml` file, streaming with expat and stopping
   at `<ModelVariables>`.
+- `read_header` returns the full FMI 2.0 Model Header: Interface Types
+  (`ModelExchange`, `CoSimulation`) with their source files, unit definitions,
+  type definitions, log categories and the default experiment, with XSD
+  defaults applied. Vendor annotations are skipped.
+- Lenient parsing by default; `strict=True` (CLI: `--strict`) raises
+  `ParseError` on unknown elements and attributes, missing required attributes,
+  out-of-range enum values and values that can't be read.
 - `read_header` accepts a `.fmu` zip path, an unzipped FMU directory, a
   `modelDescription.xml` path, a binary file-like object or bytes. Zips are
   detected by magic bytes and streamed without extracting to disk; `member=`
@@ -23,7 +30,8 @@ between minor versions.
   zip data raises `ParseError`.
 - `MdxmlError`, `ParseError` (with line and column), `UnsafeInput` and
   `UnsupportedFmiVersion`.
-- `mdxml.to_dict()` converts parsed objects into JSON-ready data.
+- `mdxml.to_dict()` converts parsed objects into JSON-ready data (infinite and
+  NaN floats become `"INF"`, `"-INF"` and `"NaN"`).
 - `mdxml header FILE` command (also `python -m mdxml`) prints the Model Header
   as JSON.
 - Project scaffold: package metadata, `py.typed` marker, MIT license, and CI

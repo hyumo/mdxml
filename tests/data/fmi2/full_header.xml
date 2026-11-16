@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written: every element and attribute of the FMI 2.0 Model Header, with non-default values. -->
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="Full"
+  guid="{00000000-0000-0000-0000-000000000001}"
+  description="Covers every Model Header element and attribute"
+  author="mdxml tests"
+  version="1.2.3"
+  copyright="(c) nobody"
+  license="MIT"
+  generationTool="hand"
+  generationDateAndTime="2026-11-16T12:00:00Z"
+  variableNamingConvention="structured"
+  numberOfEventIndicators="4">
+
+  <ModelExchange
+    modelIdentifier="FullME"
+    needsExecutionTool="true"
+    completedIntegratorStepNotNeeded="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="true"
+    canSerializeFMUstate="true"
+    providesDirectionalDerivative="true">
+    <SourceFiles>
+      <File name="a.c"/>
+      <File name="b.c"/>
+    </SourceFiles>
+  </ModelExchange>
+
+  <CoSimulation
+    modelIdentifier="FullCS"
+    needsExecutionTool="1"
+    canHandleVariableCommunicationStepSize="1"
+    canInterpolateInputs="1"
+    maxOutputDerivativeOrder="2"
+    canRunAsynchronuously="1"
+    canBeInstantiatedOnlyOncePerProcess="1"
+    canNotUseMemoryManagementFunctions="1"
+    canGetAndSetFMUstate="1"
+    canSerializeFMUstate="1"
+    providesDirectionalDerivative="1"/>
+
+  <UnitDefinitions>
+    <Unit name="degC">
+      <BaseUnit kg="1" m="2" s="-3" A="-1" K="1" mol="2" cd="3" rad="4" factor="1.5" offset="273.15"/>
+      <DisplayUnit name="degF" factor="1.8" offset="32"/>
+      <DisplayUnit name="K2"/>
+    </Unit>
+    <Unit name="dimensionless"/>
+  </UnitDefinitions>
+
+  <TypeDefinitions>
+    <SimpleType name="Temp" description="A temperature">
+      <Real quantity="ThermodynamicTemperature" unit="degC" displayUnit="degF" relativeQuantity="true"
+            min="-273.15" max="INF" nominal="300" unbounded="true"/>
+    </SimpleType>
+    <SimpleType name="Count">
+      <Integer quantity="Count" min="-5" max="5"/>
+    </SimpleType>
+    <SimpleType name="Flag">
+      <Boolean/>
+    </SimpleType>
+    <SimpleType name="Label">
+      <String/>
+    </SimpleType>
+    <SimpleType name="Mode" description="Operating mode">
+      <Enumeration quantity="Mode">
+        <Item name="off" value="0" description="Switched off"/>
+        <Item name="on" value="1"/>
+      </Enumeration>
+    </SimpleType>
+  </TypeDefinitions>
+
+  <LogCategories>
+    <Category name="logAll" description="Everything"/>
+    <Category name="logNone"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0.5" stopTime="10" tolerance="1e-6" stepSize="0.01"/>
+
+  <VendorAnnotations>
+    <Tool name="SomeTool">
+      <Anything goes="here"><Nested deeply="yes"/></Anything>
+    </Tool>
+  </VendorAnnotations>
+
+  <ModelVariables>
+    <ScalarVariable name="x" valueReference="0"><Real/></ScalarVariable>
+  </ModelVariables>
+  <ModelStructure/>
+</fmiModelDescription>
