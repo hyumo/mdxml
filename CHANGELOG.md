@@ -12,6 +12,10 @@ between minor versions.
 - `mdxml.read_header(path)` reads the root attributes of an FMI 2.0 Model
   Header from a `modelDescription.xml` file, streaming with expat and stopping
   at `<ModelVariables>`.
+- `read_header` accepts a `.fmu` zip path, an unzipped FMU directory, a
+  `modelDescription.xml` path, a binary file-like object or bytes. Zips are
+  detected by magic bytes and streamed without extracting to disk; `member=`
+  (CLI: `--member`) overrides the Model Description's location.
 - `MdxmlError`, `ParseError` (with line and column) and `UnsupportedFmiVersion`.
 - `mdxml.to_dict()` converts parsed objects into JSON-ready data.
 - `mdxml header FILE` command (also `python -m mdxml`) prints the Model Header

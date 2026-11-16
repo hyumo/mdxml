@@ -7,10 +7,11 @@ part a caller asked for is ever read (see ADR 0001).
 
 from __future__ import annotations
 
-from typing import BinaryIO, Protocol
+from typing import Protocol
 from xml.parsers import expat
 
 from mdxml._errors import ParseError
+from mdxml._source import Readable
 
 CHUNK_SIZE = 64 * 1024
 
@@ -48,7 +49,7 @@ class _ExpatPosition:
         return self._parser.CurrentColumnNumber + 1
 
 
-def run(stream: BinaryIO, handler: Handler, position_sink: list[Position]) -> None:
+def run(stream: Readable, handler: Handler, position_sink: list[Position]) -> None:
     """Parse ``stream`` with ``handler`` until the document ends or the handler raises :class:`Stop`.
 
     ``position_sink`` receives the live parser position before parsing starts,
