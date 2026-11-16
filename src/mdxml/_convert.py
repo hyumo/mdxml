@@ -43,7 +43,7 @@ def to_datetime(text: str) -> datetime:
 
 
 def to_enum(enum: type[E], text: str) -> E | str:
-    """A fixed-choice attribute. Values outside the allowed set stay plain strings (lenient)."""
+    """Convert a fixed-choice attribute. Values outside the allowed set stay plain strings (lenient)."""
     try:
         return enum(text.strip())
     except ValueError:

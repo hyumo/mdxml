@@ -25,11 +25,13 @@ def write_xml(tmp_path: Path, text: str) -> Path:
     return path
 
 
-def fmi2_xml(root_attrs: str = "", after_model_variables: str = "<ScalarVariable/></ModelVariables></fmiModelDescription>") -> str:
+def fmi2_xml(
+    root_attrs: str = "", after_model_variables: str = "<ScalarVariable/></ModelVariables></fmiModelDescription>"
+) -> str:
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<fmiModelDescription fmiVersion="2.0" modelName="M" guid="{{G}}" {root_attrs}>\n'
-        "  <DefaultExperiment stopTime=\"1\"/>\n"
+        '  <DefaultExperiment stopTime="1"/>\n'
         "  <ModelVariables>" + after_model_variables
     )
 
@@ -136,7 +138,9 @@ def test_parsing_stops_at_model_variables(tmp_path: Path) -> None:
 
 
 def test_parsing_stops_before_reading_the_rest_of_a_large_file(tmp_path: Path) -> None:
-    variables = "".join(f'<ScalarVariable name="v{i}" valueReference="{i}"><Real/></ScalarVariable>' for i in range(50_000))
+    variables = "".join(
+        f'<ScalarVariable name="v{i}" valueReference="{i}"><Real/></ScalarVariable>' for i in range(50_000)
+    )
     path = write_xml(tmp_path, fmi2_xml(after_model_variables=variables + "</ModelVariables></fmiModelDescription>"))
     read_bytes: list[int] = []
 
@@ -222,7 +226,9 @@ def test_missing_fmi_version(tmp_path: Path) -> None:
 
 
 def test_invalid_typed_value_reports_where(tmp_path: Path) -> None:
-    path = write_xml(tmp_path, '<?xml version="1.0"?>\n\n<fmiModelDescription fmiVersion="2.0" numberOfEventIndicators="-1"/>')
+    path = write_xml(
+        tmp_path, '<?xml version="1.0"?>\n\n<fmiModelDescription fmiVersion="2.0" numberOfEventIndicators="-1"/>'
+    )
     with pytest.raises(ParseError, match="numberOfEventIndicators") as info:
         read_header(path)
     assert info.value.line == 3

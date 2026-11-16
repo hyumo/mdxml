@@ -50,20 +50,22 @@ def _naming(value: str) -> VariableNamingConvention | str:
 
 
 # XSD attribute name -> (field name, converter). Attributes not listed are ignored (lenient).
-_ROOT_ATTRIBUTES: Mapping[str, tuple[str, Callable[[str], Any]]] = MappingProxyType({
-    "fmiVersion": ("fmi_version", _text),
-    "modelName": ("model_name", _text),
-    "guid": ("guid", _text),
-    "description": ("description", _text),
-    "author": ("author", _text),
-    "version": ("version", _text),
-    "copyright": ("copyright", _text),
-    "license": ("license", _text),
-    "generationTool": ("generation_tool", _text),
-    "generationDateAndTime": ("generation_date_and_time", _convert.to_datetime),
-    "variableNamingConvention": ("variable_naming_convention", _naming),
-    "numberOfEventIndicators": ("number_of_event_indicators", _convert.to_unsigned_int),
-})
+_ROOT_ATTRIBUTES: Mapping[str, tuple[str, Callable[[str], Any]]] = MappingProxyType(
+    {
+        "fmiVersion": ("fmi_version", _text),
+        "modelName": ("model_name", _text),
+        "guid": ("guid", _text),
+        "description": ("description", _text),
+        "author": ("author", _text),
+        "version": ("version", _text),
+        "copyright": ("copyright", _text),
+        "license": ("license", _text),
+        "generationTool": ("generation_tool", _text),
+        "generationDateAndTime": ("generation_date_and_time", _convert.to_datetime),
+        "variableNamingConvention": ("variable_naming_convention", _naming),
+        "numberOfEventIndicators": ("number_of_event_indicators", _convert.to_unsigned_int),
+    }
+)
 
 # Required by the XSD. Missing ones become "" in lenient mode (ADR 0003).
 _REQUIRED_TEXT = ("model_name", "guid")
@@ -80,7 +82,9 @@ def build_header(attrs: dict[str, str], *, line: int, column: int) -> ModelHeade
         try:
             fields[field] = convert(raw)
         except ValueError as exc:
-            raise ParseError(f"invalid {xml_name}={raw!r} on fmiModelDescription: {exc}", line=line, column=column) from None
+            raise ParseError(
+                f"invalid {xml_name}={raw!r} on fmiModelDescription: {exc}", line=line, column=column
+            ) from None
     for field in _REQUIRED_TEXT:
         fields.setdefault(field, "")
     return ModelHeader(**fields)

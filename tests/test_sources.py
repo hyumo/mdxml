@@ -170,7 +170,7 @@ def test_member_inside_directory(tmp_path: Path) -> None:
 
 
 def test_zip_without_model_description() -> None:
-    with pytest.raises(FileNotFoundError, match="modelDescription.xml"):
+    with pytest.raises(FileNotFoundError, match=r"modelDescription\.xml"):
         read_header(make_zip({"other.txt": b"x"}))
 
 
@@ -180,17 +180,17 @@ def test_empty_zip_has_no_model_description() -> None:
 
 
 def test_missing_member_in_zip() -> None:
-    with pytest.raises(FileNotFoundError, match="nope.xml"):
+    with pytest.raises(FileNotFoundError, match=r"nope\.xml"):
         read_header(FMU_BYTES, member="nope.xml")
 
 
 def test_directory_without_model_description(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="modelDescription.xml"):
+    with pytest.raises(FileNotFoundError, match=r"modelDescription\.xml"):
         read_header(tmp_path)
 
 
 def test_missing_member_in_directory(fmu_dir: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="nope.xml"):
+    with pytest.raises(FileNotFoundError, match=r"nope\.xml"):
         read_header(fmu_dir, member="nope.xml")
 
 
@@ -214,9 +214,9 @@ def disk_writes() -> Iterator[list[str]]:
     def hook(event: str, args: tuple[object, ...]) -> None:
         if active[0] and event == "open" and len(args) >= 2:
             path, mode = args[0], args[1]
-            if isinstance(mode, str) and _WRITE_MODES & set(mode):
-                writes.append(str(path))
-            elif isinstance(mode, int) and mode & (os.O_WRONLY | os.O_RDWR | os.O_CREAT):  # os.open flags
+            if (isinstance(mode, str) and _WRITE_MODES & set(mode)) or (
+                isinstance(mode, int) and mode & (os.O_WRONLY | os.O_RDWR | os.O_CREAT)  # os.open flags
+            ):
                 writes.append(str(path))
 
     sys.addaudithook(hook)  # audit hooks can't be removed, so the hook switches itself off
