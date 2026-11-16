@@ -236,7 +236,7 @@ ENUMERATION_ATTRS = table(
     Attr("start", "start", c.INT),
 )
 
-_KINDS: Mapping[str, tuple[type[ScalarVariable], AttrTable]] = MappingProxyType(
+KINDS: Mapping[str, tuple[type[ScalarVariable], AttrTable]] = MappingProxyType(  # typed child -> class, attributes
     {
         "Real": (RealVariable, REAL_ATTRS),
         "Integer": (IntegerVariable, INTEGER_ATTRS),
@@ -259,7 +259,7 @@ class _Kind:
     __slots__ = ("_attrs", "_cls")
 
     def __init__(self, tag: str) -> None:
-        self._cls, self._attrs = _KINDS[tag]
+        self._cls, self._attrs = KINDS[tag]
 
     def __call__(self, frame: Frame, /, *, strict: bool) -> VariableFields:
         """Return the class and the typed child's attributes."""
@@ -277,7 +277,7 @@ class _ScalarVariableBuilder(Builder[VariableFields]):
     def __call__(self, frame: Frame, /, *, strict: bool) -> VariableFields:
         """Return the variable's class and fields."""
         common = attributes(frame, SCALAR_VARIABLE_ATTRS, strict=strict)
-        kinds = [obj for tag, obj in frame.children if tag in _KINDS]
+        kinds = [obj for tag, obj in frame.children if tag in KINDS]
         if not kinds:
             raise frame.error(
                 f"<ScalarVariable name={common['name']!r}> has no Real, Integer, Boolean, String or Enumeration"
@@ -294,7 +294,7 @@ class _ScalarVariableBuilder(Builder[VariableFields]):
 def _variable_grammars(*, annotations: bool) -> Mapping[str, Grammar[VariableFields]]:
     children: dict[str, dict[str, ChildRule]] = {
         "ScalarVariable": {
-            **{tag: _Kind(tag) for tag in _KINDS},
+            **{tag: _Kind(tag) for tag in KINDS},
             "Annotations": annotations_rule.CONTAINER if annotations else SKIP,
         },
         "Annotations": {"Tool": annotations_rule.TOOL},
