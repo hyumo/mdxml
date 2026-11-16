@@ -16,6 +16,10 @@ between minor versions.
   (`ModelExchange`, `CoSimulation`) with their source files, unit definitions,
   type definitions, log categories and the default experiment, with XSD
   defaults applied. Vendor annotations are skipped.
+- Version-independent `typing.Protocol`s: `mdxml.ModelHeader`,
+  `mdxml.ModelVariable` and `mdxml.InterfaceType`, satisfied by the FMI 2.0 and
+  FMI 3.0 classes (also usable with `isinstance`). FMI 2.0 headers expose `guid`
+  as `instantiation_token` too.
 - `mdxml.read(src)` returns the whole Model Description in one pass
   (`fmi2.ModelDescription` / `fmi3.ModelDescription`): the Model Header, every
   Model Variable and the Model Structure (FMI 2 by Variable Index, FMI 3 by

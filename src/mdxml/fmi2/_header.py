@@ -225,6 +225,11 @@ class ModelHeader:
     log_categories: Named[Category] = field(default_factory=Named)
     default_experiment: DefaultExperiment | None = None
 
+    @property
+    def instantiation_token(self) -> str:
+        """The ``guid``, under its FMI 3.0 name, so version-independent code can use one name."""
+        return self.guid
+
     def __post_init__(self) -> None:
         """Accept plain tuples for the definition lists, so headers can be built by hand."""
         for name in ("unit_definitions", "type_definitions", "log_categories"):
