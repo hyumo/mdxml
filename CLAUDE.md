@@ -10,6 +10,18 @@ uv run mypy
 uv run pyright
 ```
 
+Tests marked `slow` (million-variable memory checks, about a minute) are skipped by default; run them when touching the reader, the grammars or the variable stream:
+
+```sh
+uv run pytest -m slow
+```
+
+Benchmarks against FMPy (Linux/macOS; regenerates `benchmarks/RESULTS.md`):
+
+```sh
+uv run --group bench python benchmarks/bench.py --output benchmarks/RESULTS.md
+```
+
 Python 3.10 is the oldest supported version, so also run the tests on it:
 
 ```sh

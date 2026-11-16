@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import Any
 
 from mdxml.fmi2._header import ModelHeader
 from mdxml.fmi2._structure import ModelStructure
@@ -40,6 +42,11 @@ class ModelDescription:
         object.__setattr__(self, "_by_value_reference", MappingProxyType(by_vr))
         object.__setattr__(self, "_by_typed_value_reference", MappingProxyType(by_typed_vr))
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        """Pickle only the fields; the lookup indexes are rebuilt when unpickled."""
+        fields = {f.name: getattr(self, f.name) for f in dataclasses.fields(self) if f.init}
+        return (_unpickle, (type(self), fields))
+
     def variable_by_name(self, name: str) -> Variable:
         """Return the variable with this name."""
         return self._by_name[name]
@@ -60,3 +67,7 @@ class ModelDescription:
         if type_name is None:
             return self._by_value_reference[value_reference]
         return self._by_typed_value_reference[(type_name, value_reference)]
+
+
+def _unpickle(cls: type[ModelDescription], fields: dict[str, Any]) -> ModelDescription:
+    return cls(**fields)
