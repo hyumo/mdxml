@@ -23,9 +23,11 @@ from mdxml._grammar import Grammar, TreeHandler
 from mdxml._header import AnyModelHeader, choose_header_grammar
 from mdxml._schema import Frame
 from mdxml._source import Source, open_source
+from mdxml.fmi2 import _structure as fmi2_structure
 from mdxml.fmi2 import _variables as fmi2_variables
 from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
 from mdxml.fmi2._variables import Variable as Fmi2Variable
+from mdxml.fmi3 import _structure as fmi3_structure
 from mdxml.fmi3 import _variables as fmi3_variables
 from mdxml.fmi3._variables import Variable as Fmi3Variable
 
@@ -39,6 +41,7 @@ Selector = str | Iterable[str] | None
 """A filter value: one value, several, or ``None`` for no filtering."""
 
 MODEL_VARIABLES = "ModelVariables"
+MODEL_STRUCTURE = "ModelStructure"
 
 
 def _selector(value: Selector) -> frozenset[str] | None:
@@ -49,7 +52,7 @@ def _selector(value: Selector) -> frozenset[str] | None:
     return frozenset(str(v.value) if isinstance(v, Enum) else str(v) for v in values)
 
 
-class _Filter:
+class VariableFilter:
     """Decides from a variable's raw attributes whether to build it at all."""
 
     __slots__ = ("_causality", "_name_prefix", "_variability")
@@ -78,23 +81,42 @@ class _VariablesHandler:
     """Builds the Model Header, then each Model Variable as its element closes."""
 
     __slots__ = (
+        "_after_model_structure",
+        "_after_variables",
         "_filter",
         "_filter_values",
         "_grammars",
         "_header_handler",
+        "_in_structure",
         "_in_variable",
         "_index",
         "_position",
+        "_read_structure",
         "_skip_depth",
         "_strict",
+        "_structure_handler",
         "_variable_handler",
         "done",
         "header",
+        "model_structure",
         "pending",
     )
 
-    def __init__(self, position: list[_reader.Position], *, strict: bool, variable_filter: _Filter) -> None:
+    def __init__(
+        self,
+        position: list[_reader.Position],
+        *,
+        strict: bool,
+        variable_filter: VariableFilter,
+        read_structure: bool = False,
+    ) -> None:
         self._position = position
+        self._read_structure = read_structure
+        self._after_variables = False
+        self._in_structure = False
+        self._structure_handler: TreeHandler[Any] | None = None
+        self._after_model_structure: frozenset[str] = frozenset()
+        self.model_structure: Any = None
         self._strict = strict
         self._filter = variable_filter if variable_filter.active else None
         self._header_handler = TreeHandler(choose_header_grammar, position, strict=strict)
@@ -119,6 +141,9 @@ class _VariablesHandler:
             return
         if self._skip_depth:
             self._skip_depth += 1
+            return
+        if self._after_variables:
+            self._start_after_variables(name, attrs)
             return
         if self._in_variable:
             assert self._variable_handler is not None  # noqa: S101 - set on entering ModelVariables
@@ -148,6 +173,9 @@ class _VariablesHandler:
         if self._skip_depth:
             self._skip_depth -= 1
             return
+        if self._after_variables:
+            self._end_after_variables(name)
+            return
         if self._in_variable:
             assert self._variable_handler is not None  # noqa: S101
             self._variable_handler.end(name)
@@ -156,7 +184,43 @@ class _VariablesHandler:
                 self.pending.append(cls(index=self._index, **fields))
                 self._in_variable = False
             return
+        if self._read_structure:
+            self._after_variables = True  # keep reading: the Model Structure comes next
+            return
         # </ModelVariables>: nothing after it is needed.
+        self.done = True
+        raise _reader.Stop
+
+    def _start_after_variables(self, name: str, attrs: dict[str, str]) -> None:
+        """Open an element after ``</ModelVariables>``: only the Model Structure is built."""
+        if self._in_structure:
+            assert self._structure_handler is not None  # noqa: S101 - set on entering ModelVariables
+            self._structure_handler.start(name, attrs)
+            return
+        # A direct child of the root.
+        if name == MODEL_STRUCTURE and (self.model_structure is None or not self._strict):
+            assert self._structure_handler is not None  # noqa: S101
+            if self.model_structure is None:  # lenient: a second ModelStructure is ignored
+                self._in_structure = True
+                self._structure_handler.reset()
+                self._structure_handler.start(name, attrs)
+                return
+        elif name in self._after_model_structure:
+            pass  # e.g. FMI 3's trailing <Annotations>: skipped
+        elif self._strict:
+            pos = self._position[0]
+            raise ParseError(f"unexpected element <{name}> after <{MODEL_VARIABLES}>", line=pos.line, column=pos.column)
+        self._skip_depth = 1
+
+    def _end_after_variables(self, name: str) -> None:
+        """Close an element after ``</ModelVariables>``; the root closing ends the document."""
+        if self._in_structure:
+            assert self._structure_handler is not None  # noqa: S101
+            self._structure_handler.end(name)
+            if self._structure_handler.result is not None:
+                self.model_structure = self._structure_handler.result
+                self._in_structure = False
+            return
         self.done = True
         raise _reader.Stop
 
@@ -167,13 +231,20 @@ class _VariablesHandler:
         return self.header
 
     def _enter_model_variables(self, header: AnyModelHeader) -> None:
+        structure_grammar: Grammar[Any]
         if isinstance(header, Fmi2ModelHeader):
             self._grammars = fmi2_variables.VARIABLE_GRAMMARS
             self._filter_values = fmi2_variables.filter_values
+            structure_grammar = fmi2_structure.STRUCTURE_GRAMMAR
+            self._after_model_structure = fmi2_structure.AFTER_MODEL_STRUCTURE
         else:
             self._grammars = fmi3_variables.VARIABLE_GRAMMARS
             self._filter_values = fmi3_variables.filter_values
+            structure_grammar = fmi3_structure.STRUCTURE_GRAMMAR
+            self._after_model_structure = fmi3_structure.AFTER_MODEL_STRUCTURE
         self._variable_handler = TreeHandler(self._choose_variable_grammar, self._position, strict=self._strict)
+        if self._read_structure:
+            self._structure_handler = TreeHandler(lambda _: structure_grammar, self._position, strict=self._strict)
 
     def _choose_variable_grammar(self, root: Frame) -> Grammar[Any]:
         return self._grammars[root.tag]
@@ -196,7 +267,8 @@ class VariableIterator:
         member: str | None,
         strict: bool,
         max_xml_bytes: int,
-        variable_filter: _Filter,
+        variable_filter: VariableFilter,
+        read_structure: bool = False,
     ) -> None:
         """Prepare the iterator; nothing is read until it's used."""
         self._src = src
@@ -204,7 +276,9 @@ class VariableIterator:
         self._strict = strict
         self._max_xml_bytes = max_xml_bytes
         self._position: list[_reader.Position] = []
-        self._handler = _VariablesHandler(self._position, strict=strict, variable_filter=variable_filter)
+        self._handler = _VariablesHandler(
+            self._position, strict=strict, variable_filter=variable_filter, read_structure=read_structure
+        )
         self._resources = ExitStack()
         self._steps: Generator[None, None, None] | None = None
 
@@ -228,6 +302,11 @@ class VariableIterator:
         while self._handler.header is None and self._advance():
             pass
         return self._handler.finish()
+
+    @property
+    def model_structure(self) -> Any:
+        """The Model Structure, once iteration has finished (only when created by :func:`mdxml.read`)."""
+        return self._handler.model_structure
 
     def close(self) -> None:
         """Stop reading and close the source."""
@@ -291,7 +370,7 @@ def iter_variables(
     _reader.check_max_xml_bytes(max_xml_bytes)
     if isinstance(src, (str, os.PathLike)) and not os.path.exists(src):
         raise FileNotFoundError(f"no such file or directory: {os.fspath(src)!r}")
-    variable_filter = _Filter(causality=causality, variability=variability, name_prefix=name_prefix)
+    variable_filter = VariableFilter(causality=causality, variability=variability, name_prefix=name_prefix)
     return VariableIterator(
         src, member=member, strict=strict, max_xml_bytes=max_xml_bytes, variable_filter=variable_filter
     )

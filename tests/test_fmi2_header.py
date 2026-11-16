@@ -11,6 +11,7 @@ import pytest
 
 import mdxml
 from mdxml import ParseError, Source, fmi2
+from mdxml._lookup import Named
 from mdxml.fmi2 import (
     BaseUnit,
     BooleanType,
@@ -88,38 +89,42 @@ def test_full_header_fixture() -> None:
             can_serialize_fmu_state=True,
             provides_directional_derivative=True,
         ),
-        unit_definitions=(
-            Unit(
-                name="degC",
-                base_unit=BaseUnit(kg=1, m=2, s=-3, A=-1, K=1, mol=2, cd=3, rad=4, factor=1.5, offset=273.15),
-                display_units=(DisplayUnit(name="degF", factor=1.8, offset=32.0), DisplayUnit(name="K2")),
-            ),
-            Unit(name="dimensionless"),
+        unit_definitions=Named(
+            (
+                Unit(
+                    name="degC",
+                    base_unit=BaseUnit(kg=1, m=2, s=-3, A=-1, K=1, mol=2, cd=3, rad=4, factor=1.5, offset=273.15),
+                    display_units=(DisplayUnit(name="degF", factor=1.8, offset=32.0), DisplayUnit(name="K2")),
+                ),
+                Unit(name="dimensionless"),
+            )
         ),
-        type_definitions=(
-            RealType(
-                name="Temp",
-                description="A temperature",
-                quantity="ThermodynamicTemperature",
-                unit="degC",
-                display_unit="degF",
-                relative_quantity=True,
-                min=-273.15,
-                max=math.inf,
-                nominal=300.0,
-                unbounded=True,
-            ),
-            IntegerType(name="Count", quantity="Count", min=-5, max=5),
-            BooleanType(name="Flag"),
-            StringType(name="Label"),
-            EnumerationType(
-                name="Mode",
-                description="Operating mode",
-                quantity="Mode",
-                items=(Item(name="off", value=0, description="Switched off"), Item(name="on", value=1)),
-            ),
+        type_definitions=Named(
+            (
+                RealType(
+                    name="Temp",
+                    description="A temperature",
+                    quantity="ThermodynamicTemperature",
+                    unit="degC",
+                    display_unit="degF",
+                    relative_quantity=True,
+                    min=-273.15,
+                    max=math.inf,
+                    nominal=300.0,
+                    unbounded=True,
+                ),
+                IntegerType(name="Count", quantity="Count", min=-5, max=5),
+                BooleanType(name="Flag"),
+                StringType(name="Label"),
+                EnumerationType(
+                    name="Mode",
+                    description="Operating mode",
+                    quantity="Mode",
+                    items=(Item(name="off", value=0, description="Switched off"), Item(name="on", value=1)),
+                ),
+            )
         ),
-        log_categories=(Category(name="logAll", description="Everything"), Category(name="logNone")),
+        log_categories=Named((Category(name="logAll", description="Everything"), Category(name="logNone"))),
         default_experiment=DefaultExperiment(start_time=0.5, stop_time=10.0, tolerance=1e-6, step_size=0.01),
     )
 

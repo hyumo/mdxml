@@ -16,6 +16,15 @@ between minor versions.
   (`ModelExchange`, `CoSimulation`) with their source files, unit definitions,
   type definitions, log categories and the default experiment, with XSD
   defaults applied. Vendor annotations are skipped.
+- `mdxml.read(src)` returns the whole Model Description in one pass
+  (`fmi2.ModelDescription` / `fmi3.ModelDescription`): the Model Header, every
+  Model Variable and the Model Structure (FMI 2 by Variable Index, FMI 3 by
+  value reference), with `dependencies` / `dependenciesKind` kept as written.
+  Lookups: `variable_by_name`, `variable_by_value_reference` (FMI 2 takes an
+  optional `type_name`) and, for FMI 2, `variable_by_index`; all raise
+  `KeyError` for unknown keys.
+- Unit definitions, type definitions and log categories are `mdxml.Named`
+  tuples that can also be indexed by name (`header.type_definitions["Position"]`).
 - `mdxml.iter_variables(src)` streams FMI 2.0 Model Variables one at a time
   with flat memory, stopping at `</ModelVariables>`. One class per kind
   (`RealVariable`, `IntegerVariable`, `BooleanVariable`, `StringVariable`,

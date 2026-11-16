@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written: every FMI 3.0 Model Structure element, dependency forms, and trailing Annotations. -->
+<fmiModelDescription fmiVersion="3.0" modelName="Struct3" instantiationToken="{S3}">
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent"/>
+    <Float64 name="x" valueReference="1"/>
+    <Float64 name="der(x)" valueReference="2" derivative="1"/>
+    <Float64 name="y" valueReference="3" causality="output"/>
+    <Clock name="clk" valueReference="4" causality="input" intervalVariability="triggered"/>
+    <Float64 name="xc" valueReference="5" variability="discrete" clocks="4" previous="6"/>
+    <Float64 name="xc_prev" valueReference="6" variability="discrete" clocks="4"/>
+    <Float64 name="z" valueReference="7"/>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="3" dependencies="1 7" dependenciesKind="dependent constant">
+      <Annotations><Annotation type="t"/></Annotations>
+    </Output>
+    <ContinuousStateDerivative valueReference="2" dependencies="1"/>
+    <ClockedState valueReference="5" dependencies=""/>
+    <InitialUnknown valueReference="3"/>
+    <InitialUnknown valueReference="2" dependencies="1" dependenciesKind="fixed"/>
+    <EventIndicator valueReference="7" dependencies="1" dependenciesKind="discrete"/>
+  </ModelStructure>
+  <Annotations>
+    <Annotation type="com.example"><Anything deeply="nested"/></Annotation>
+  </Annotations>
+</fmiModelDescription>
