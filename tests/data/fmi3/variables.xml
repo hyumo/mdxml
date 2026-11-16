@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written: every FMI 3.0 variable kind and attribute, scalars and arrays, aliases and <Start> children. -->
+<fmiModelDescription fmiVersion="3.0" modelName="Vars3" instantiationToken="{V3}">
+  <ModelVariables>
+    <Float64 name="f64" valueReference="1" description="a double" causality="output" variability="discrete"
+             initial="exact" canHandleMultipleSetPerTimeInstant="false" clocks="10 11" declaredType="T"
+             intermediateUpdate="true" previous="2" quantity="Q" unit="m" displayUnit="mm"
+             relativeQuantity="true" unbounded="true" min="-1" max="INF" nominal="2" start="0.5"
+             derivative="3" reinit="true">
+      <Annotations><Annotation type="t"><Anything/></Annotation></Annotations>
+      <Alias name="f64_alias" description="another name" displayUnit="km"/>
+      <Alias name="f64_alias2"/>
+    </Float64>
+    <Float32 name="f32_array" valueReference="2" causality="parameter" variability="tunable" start="1 2 3 4 5 6">
+      <Dimension start="2"/>
+      <Dimension valueReference="100"/>
+    </Float32>
+    <Int8 name="i8" valueReference="3" causality="input" min="-128" max="127" start="-5" quantity="Count"/>
+    <UInt8 name="u8" valueReference="4" start="255"/>
+    <Int16 name="i16" valueReference="5" start="-32768"/>
+    <UInt16 name="u16" valueReference="6" start="65535"/>
+    <Int32 name="i32_array" valueReference="7" causality="structuralParameter" variability="fixed" start="1 2">
+      <Dimension start="2"/>
+    </Int32>
+    <UInt32 name="u32" valueReference="8" start="4294967295"/>
+    <Int64 name="i64" valueReference="9" start="-9223372036854775808"/>
+    <UInt64 name="u64" valueReference="10" start="18446744073709551615"/>
+    <Boolean name="b_array" valueReference="11" causality="input" start="true false 1 0">
+      <Dimension start="4"/>
+    </Boolean>
+    <String name="s" valueReference="12" causality="parameter" variability="fixed">
+      <Start value="hello world"/>
+      <Alias name="s_alias"/>
+    </String>
+    <String name="s_array" valueReference="13" causality="parameter" variability="fixed">
+      <Dimension start="2"/>
+      <Start value="a"/>
+      <Start value="b"/>
+    </String>
+    <Binary name="bin" valueReference="14" causality="input" mimeType="image/png" maxSize="16">
+      <Start value="cafeBABE"/>
+    </Binary>
+    <Enumeration name="e" valueReference="15" declaredType="Mode" quantity="Mode" min="0" max="1" start="1"/>
+    <Clock name="clk" valueReference="16" causality="input" variability="discrete" description="a clock"
+           declaredType="C" canBeDeactivated="true" priority="2" intervalVariability="countdown"
+           intervalDecimal="0.1" shiftDecimal="0.05" supportsFraction="true" resolution="1000"
+           intervalCounter="100" shiftCounter="50">
+      <Alias name="clk_alias"/>
+    </Clock>
+    <Float64 name="defaults" valueReference="17"/>
+  </ModelVariables>
+  <ModelStructure/>
+</fmiModelDescription>

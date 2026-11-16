@@ -285,10 +285,13 @@ VARIABLE_GRAMMAR = Grammar(
     },
 )
 
-VARIABLE_ELEMENTS = frozenset({"ScalarVariable"})
-"""Elements in ``ModelVariables`` that are Model Variables."""
+VARIABLE_GRAMMARS: Mapping[str, Grammar[VariableFields]] = MappingProxyType({"ScalarVariable": VARIABLE_GRAMMAR})
+"""The grammar for each variable element, keyed by element name."""
 
-# Raw-attribute defaults used when filtering before a variable is built.
-FILTER_DEFAULTS: Mapping[str, str] = MappingProxyType(
-    {"causality": Causality.LOCAL.value, "variability": Variability.CONTINUOUS.value}
-)
+
+def filter_values(element: str, attrs: Mapping[str, str]) -> tuple[str, str]:
+    """Return a variable's causality and variability from its raw attributes, with XSD defaults applied."""
+    return (
+        attrs.get("causality", Causality.LOCAL.value).strip(),
+        attrs.get("variability", Variability.CONTINUOUS.value).strip(),
+    )

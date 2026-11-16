@@ -13,6 +13,7 @@ from enum import Enum
 from typing import Protocol, TypeVar
 
 E = TypeVar("E", bound=Enum)
+T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 
 _TRUE = frozenset({"true", "1"})
@@ -101,6 +102,24 @@ def to_double(text: str, *, strict: bool) -> float:
 def to_datetime(text: str, *, strict: bool) -> datetime:
     """``xs:dateTime``. Accepts a trailing ``Z`` on every supported Python version."""
     return datetime.fromisoformat(_UTC_SUFFIX.sub("+00:00", text.strip()))
+
+
+def to_hex_binary(text: str, *, strict: bool) -> bytes:
+    """``xs:hexBinary``: pairs of hex digits."""
+    return bytes.fromhex(text.strip())
+
+
+class ListOf(Converter[tuple[T, ...]]):
+    """An ``xs:list``: whitespace-separated items, each converted with ``item``."""
+
+    __slots__ = ("_item",)
+
+    def __init__(self, item: Converter[T]) -> None:
+        self._item = item
+
+    def __call__(self, text: str, /, *, strict: bool) -> tuple[T, ...]:
+        """Convert every item; any invalid item makes the whole list invalid."""
+        return tuple(self._item(part, strict=strict) for part in text.split())
 
 
 class EnumConverter(Converter[E | str]):

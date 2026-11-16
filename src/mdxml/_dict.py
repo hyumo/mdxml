@@ -14,8 +14,9 @@ def to_dict(obj: Any) -> Any:
 
     Dataclasses become dicts keyed by field name, with ``None`` fields left
     out. Enums become their string value, tuples become lists, datetimes
-    become ISO 8601 strings, and infinite or NaN floats become the XSD
-    spellings ``"INF"``, ``"-INF"`` and ``"NaN"`` (JSON has no such numbers).
+    become ISO 8601 strings, ``bytes`` become hex strings, and infinite or
+    NaN floats become the XSD spellings ``"INF"``, ``"-INF"`` and ``"NaN"``
+    (JSON has no such numbers).
     """
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
         return {
@@ -27,8 +28,15 @@ def to_dict(obj: Any) -> Any:
         return to_dict(obj.value)
     if isinstance(obj, (tuple, list)):
         return [to_dict(item) for item in obj]  # pyright: ignore[reportUnknownVariableType]
+    return _scalar(obj)
+
+
+def _scalar(obj: Any) -> Any:
+    """Convert a value that isn't a container into JSON-ready data."""
     if isinstance(obj, datetime):
         return obj.isoformat()
+    if isinstance(obj, bytes):
+        return obj.hex()
     if isinstance(obj, float) and not math.isfinite(obj):
         return "NaN" if math.isnan(obj) else ("INF" if obj > 0 else "-INF")
     return obj
