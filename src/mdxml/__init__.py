@@ -8,6 +8,7 @@ from mdxml._dict import to_dict
 from mdxml._errors import MdxmlError, ParseError, UnsafeInput, UnsupportedFmiVersion
 from mdxml._header import AnyModelHeader, read_header
 from mdxml._lookup import Named
+from mdxml._protocols import InterfaceType, ModelHeader, ModelVariable
 from mdxml._read import AnyModelDescription, read
 from mdxml._reader import DEFAULT_MAX_XML_BYTES
 from mdxml._source import Source
@@ -18,7 +19,10 @@ __all__ = [
     "AnyModelDescription",
     "AnyModelHeader",
     "AnyVariable",
+    "InterfaceType",
     "MdxmlError",
+    "ModelHeader",
+    "ModelVariable",
     "Named",
     "ParseError",
     "Source",
