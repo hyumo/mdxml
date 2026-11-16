@@ -22,6 +22,11 @@ def _parser() -> argparse.ArgumentParser:
         "--member", help="where the Model Description lives inside the FMU (default: modelDescription.xml)"
     )
     header.add_argument(
+        "--strict",
+        action="store_true",
+        help="raise on anything the FMI XSD doesn't allow, instead of ignoring it",
+    )
+    header.add_argument(
         "--max-xml-bytes",
         type=int,
         default=DEFAULT_MAX_XML_BYTES,
@@ -33,7 +38,7 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        header = read_header(args.path, member=args.member, max_xml_bytes=args.max_xml_bytes)
+        header = read_header(args.path, member=args.member, strict=args.strict, max_xml_bytes=args.max_xml_bytes)
     except (MdxmlError, OSError, ValueError, TypeError) as exc:
         print(f"mdxml: error: {exc}", file=sys.stderr)
         return 1

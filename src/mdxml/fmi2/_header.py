@@ -1,16 +1,25 @@
-"""The FMI 2.0 Model Header."""
+"""The FMI 2.0 Model Header: everything in ``fmiModelDescription`` before ``ModelVariables``.
+
+Classes mirror the FMI 2.0 XSD (``schema/fmi2``): one per element, field
+names are the XSD attribute names in snake_case, and defaults are the XSD
+defaults. ``SourceFiles/File`` elements, which only carry a name, become a
+tuple of file names.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 
-from mdxml import _convert
-from mdxml._errors import ParseError
+from mdxml import _convert as c
+from mdxml._grammar import SKIP, Grammar
+from mdxml._schema import Attr, Frame, attributes, table
+
+# --- Enums ----------------------------------------------------------------------------------
 
 
 class VariableNamingConvention(str, Enum):
@@ -20,11 +29,180 @@ class VariableNamingConvention(str, Enum):
     STRUCTURED = "structured"
 
 
+# --- Interface Types ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ModelExchange:
+    """The ``ModelExchange`` Interface Type."""
+
+    model_identifier: str
+    needs_execution_tool: bool = False
+    completed_integrator_step_not_needed: bool = False
+    can_be_instantiated_only_once_per_process: bool = False
+    can_not_use_memory_management_functions: bool = False
+    can_get_and_set_fmu_state: bool = False
+    can_serialize_fmu_state: bool = False
+    provides_directional_derivative: bool = False
+    source_files: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CoSimulation:
+    """The ``CoSimulation`` Interface Type."""
+
+    model_identifier: str
+    needs_execution_tool: bool = False
+    can_handle_variable_communication_step_size: bool = False
+    can_interpolate_inputs: bool = False
+    max_output_derivative_order: int = 0
+    can_run_asynchronuously: bool = False  # sic: the XSD's spelling
+    can_be_instantiated_only_once_per_process: bool = False
+    can_not_use_memory_management_functions: bool = False
+    can_get_and_set_fmu_state: bool = False
+    can_serialize_fmu_state: bool = False
+    provides_directional_derivative: bool = False
+    source_files: tuple[str, ...] = ()
+
+
+# --- Units ----------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BaseUnit:
+    """A unit's exponents of the SI base units, plus ``factor`` and ``offset`` to convert to them.
+
+    Field names keep the XSD's case-sensitive SI symbols (``A`` is ampere, ``K`` is kelvin).
+    """
+
+    kg: int = 0
+    m: int = 0
+    s: int = 0
+    A: int = 0
+    K: int = 0
+    mol: int = 0
+    cd: int = 0
+    rad: int = 0
+    factor: float = 1.0
+    offset: float = 0.0
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DisplayUnit:
+    """A unit to display values in, converted from the unit by ``factor`` and ``offset``."""
+
+    name: str
+    factor: float = 1.0
+    offset: float = 0.0
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Unit:
+    """A ``Unit`` in ``UnitDefinitions``."""
+
+    name: str
+    base_unit: BaseUnit | None = None
+    display_units: tuple[DisplayUnit, ...] = ()
+
+
+# --- Type definitions -----------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RealType:
+    """A ``SimpleType`` with a ``Real`` element."""
+
+    name: str
+    description: str | None = None
+    quantity: str | None = None
+    unit: str | None = None
+    display_unit: str | None = None
+    relative_quantity: bool = False
+    min: float | None = None
+    max: float | None = None
+    nominal: float | None = None
+    unbounded: bool = False
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class IntegerType:
+    """A ``SimpleType`` with an ``Integer`` element."""
+
+    name: str
+    description: str | None = None
+    quantity: str | None = None
+    min: int | None = None
+    max: int | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BooleanType:
+    """A ``SimpleType`` with a ``Boolean`` element."""
+
+    name: str
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class StringType:
+    """A ``SimpleType`` with a ``String`` element."""
+
+    name: str
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Item:
+    """One allowed value of an ``Enumeration`` type."""
+
+    name: str
+    value: int
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EnumerationType:
+    """A ``SimpleType`` with an ``Enumeration`` element."""
+
+    name: str
+    description: str | None = None
+    quantity: str | None = None
+    items: tuple[Item, ...] = ()
+
+
+TypeDefinition = RealType | IntegerType | BooleanType | StringType | EnumerationType
+"""Any ``SimpleType`` in ``TypeDefinitions``."""
+
+
+# --- Log categories and default experiment --------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Category:
+    """A log category in ``LogCategories``."""
+
+    name: str
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DefaultExperiment:
+    """Default simulation settings suggested by the FMU."""
+
+    start_time: float | None = None
+    stop_time: float | None = None
+    tolerance: float | None = None
+    step_size: float | None = None
+
+
+# --- Model Header ---------------------------------------------------------------------------
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ModelHeader:
     """Everything in an FMI 2.0 Model Description before ``ModelVariables``.
 
-    For now only the root ``fmiModelDescription`` attributes are parsed.
+    Annotations (``VendorAnnotations``) aren't part of the Model Header.
     """
 
     fmi_version: str
@@ -39,52 +217,290 @@ class ModelHeader:
     generation_date_and_time: datetime | None = None
     variable_naming_convention: VariableNamingConvention | str = VariableNamingConvention.FLAT
     number_of_event_indicators: int | None = None
+    model_exchange: ModelExchange | None = None
+    co_simulation: CoSimulation | None = None
+    unit_definitions: tuple[Unit, ...] = ()
+    type_definitions: tuple[TypeDefinition, ...] = ()
+    log_categories: tuple[Category, ...] = ()
+    default_experiment: DefaultExperiment | None = None
 
 
-def _text(value: str) -> str:
-    return value
+# --- Attribute tables -----------------------------------------------------------------------
 
 
-def _naming(value: str) -> VariableNamingConvention | str:
-    return _convert.to_enum(VariableNamingConvention, value)
+def _required_text(xml: str, field: str) -> Attr:
+    return Attr(xml, field, c.to_text, required=True, fallback="")
 
 
-# XSD attribute name -> (field name, converter). Attributes not listed are ignored (lenient).
-_ROOT_ATTRIBUTES: Mapping[str, tuple[str, Callable[[str], Any]]] = MappingProxyType(
+def _text(xml: str, field: str) -> Attr:
+    return Attr(xml, field, c.to_text)
+
+
+def _flag(xml: str, field: str) -> Attr:
+    return Attr(xml, field, c.to_bool)
+
+
+def _double(xml: str, field: str) -> Attr:
+    return Attr(xml, field, c.to_double)
+
+
+def _int(xml: str, field: str) -> Attr:
+    return Attr(xml, field, c.to_int)
+
+
+ROOT_ATTRS = table(
+    _required_text("fmiVersion", "fmi_version"),
+    _required_text("modelName", "model_name"),
+    _required_text("guid", "guid"),
+    _text("description", "description"),
+    _text("author", "author"),
+    _text("version", "version"),
+    _text("copyright", "copyright"),
+    _text("license", "license"),
+    _text("generationTool", "generation_tool"),
+    Attr("generationDateAndTime", "generation_date_and_time", c.to_datetime),
+    Attr("variableNamingConvention", "variable_naming_convention", c.EnumConverter(VariableNamingConvention)),
+    Attr("numberOfEventIndicators", "number_of_event_indicators", c.to_unsigned_int),
+)
+
+_COMMON_INTERFACE_ATTRS = (
+    _required_text("modelIdentifier", "model_identifier"),
+    _flag("needsExecutionTool", "needs_execution_tool"),
+    _flag("canBeInstantiatedOnlyOncePerProcess", "can_be_instantiated_only_once_per_process"),
+    _flag("canNotUseMemoryManagementFunctions", "can_not_use_memory_management_functions"),
+    _flag("canGetAndSetFMUstate", "can_get_and_set_fmu_state"),
+    _flag("canSerializeFMUstate", "can_serialize_fmu_state"),
+    _flag("providesDirectionalDerivative", "provides_directional_derivative"),
+)
+
+MODEL_EXCHANGE_ATTRS = table(
+    *_COMMON_INTERFACE_ATTRS,
+    _flag("completedIntegratorStepNotNeeded", "completed_integrator_step_not_needed"),
+)
+
+CO_SIMULATION_ATTRS = table(
+    *_COMMON_INTERFACE_ATTRS,
+    _flag("canHandleVariableCommunicationStepSize", "can_handle_variable_communication_step_size"),
+    _flag("canInterpolateInputs", "can_interpolate_inputs"),
+    Attr("maxOutputDerivativeOrder", "max_output_derivative_order", c.to_unsigned_int),
+    _flag("canRunAsynchronuously", "can_run_asynchronuously"),
+)
+
+FILE_ATTRS = table(_required_text("name", "name"))
+
+UNIT_ATTRS = table(_required_text("name", "name"))
+
+BASE_UNIT_ATTRS = table(
+    *(_int(symbol, symbol) for symbol in ("kg", "m", "s", "A", "K", "mol", "cd", "rad")),
+    _double("factor", "factor"),
+    _double("offset", "offset"),
+)
+
+DISPLAY_UNIT_ATTRS = table(
+    _required_text("name", "name"),
+    _double("factor", "factor"),
+    _double("offset", "offset"),
+)
+
+SIMPLE_TYPE_ATTRS = table(
+    _required_text("name", "name"),
+    _text("description", "description"),
+)
+
+REAL_ATTRS = table(
+    _text("quantity", "quantity"),
+    _text("unit", "unit"),
+    _text("displayUnit", "display_unit"),
+    _flag("relativeQuantity", "relative_quantity"),
+    _double("min", "min"),
+    _double("max", "max"),
+    _double("nominal", "nominal"),
+    _flag("unbounded", "unbounded"),
+)
+
+INTEGER_ATTRS = table(
+    _text("quantity", "quantity"),
+    _int("min", "min"),
+    _int("max", "max"),
+)
+
+ENUMERATION_ATTRS = table(_text("quantity", "quantity"))
+
+ITEM_ATTRS = table(
+    _required_text("name", "name"),
+    Attr("value", "value", c.to_int, required=True),
+    _text("description", "description"),
+)
+
+EMPTY_ATTRS = table()
+
+CATEGORY_ATTRS = table(
+    _required_text("name", "name"),
+    _text("description", "description"),
+)
+
+DEFAULT_EXPERIMENT_ATTRS = table(
+    _double("startTime", "start_time"),
+    _double("stopTime", "stop_time"),
+    _double("tolerance", "tolerance"),
+    _double("stepSize", "step_size"),
+)
+
+
+# --- Builders -------------------------------------------------------------------------------
+
+
+def _source_files(frame: Frame, *, strict: bool) -> tuple[str, ...]:
+    files = frame.one("SourceFiles", strict=strict)
+    return tuple(files) if files else ()
+
+
+def _build_model_exchange(frame: Frame, *, strict: bool) -> ModelExchange:
+    return ModelExchange(
+        **attributes(frame, MODEL_EXCHANGE_ATTRS, strict=strict), source_files=_source_files(frame, strict=strict)
+    )
+
+
+def _build_co_simulation(frame: Frame, *, strict: bool) -> CoSimulation:
+    return CoSimulation(
+        **attributes(frame, CO_SIMULATION_ATTRS, strict=strict), source_files=_source_files(frame, strict=strict)
+    )
+
+
+def _build_source_files(frame: Frame, *, strict: bool) -> tuple[str, ...]:
+    attributes(frame, EMPTY_ATTRS, strict=strict)
+    return tuple(frame.all("File"))
+
+
+def _build_file(frame: Frame, *, strict: bool) -> str:
+    name: str = attributes(frame, FILE_ATTRS, strict=strict)["name"]
+    return name
+
+
+def _build_unit(frame: Frame, *, strict: bool) -> Unit:
+    return Unit(
+        **attributes(frame, UNIT_ATTRS, strict=strict),
+        base_unit=frame.one("BaseUnit", strict=strict),
+        display_units=tuple(frame.all("DisplayUnit")),
+    )
+
+
+def _build_base_unit(frame: Frame, *, strict: bool) -> BaseUnit:
+    return BaseUnit(**attributes(frame, BASE_UNIT_ATTRS, strict=strict))
+
+
+def _build_display_unit(frame: Frame, *, strict: bool) -> DisplayUnit:
+    return DisplayUnit(**attributes(frame, DISPLAY_UNIT_ATTRS, strict=strict))
+
+
+def _build_simple_type(frame: Frame, *, strict: bool) -> TypeDefinition:
+    common = attributes(frame, SIMPLE_TYPE_ATTRS, strict=strict)
+    kinds = [(tag, obj) for tag, obj in frame.children if tag in _TYPE_KINDS]
+    if not kinds:
+        raise frame.error(f"<SimpleType name={common['name']!r}> has no Real, Integer, Boolean, String or Enumeration")
+    if len(kinds) > 1 and strict:
+        raise frame.error(f"<SimpleType name={common['name']!r}> has {len(kinds)} type elements, expected one")
+    tag, kind_fields = kinds[0]
+    return _TYPE_KINDS[tag](**common, **cast("dict[str, Any]", kind_fields))
+
+
+def _build_real(frame: Frame, *, strict: bool) -> dict[str, object]:
+    return attributes(frame, REAL_ATTRS, strict=strict)
+
+
+def _build_integer(frame: Frame, *, strict: bool) -> dict[str, object]:
+    return attributes(frame, INTEGER_ATTRS, strict=strict)
+
+
+def _build_no_attributes(frame: Frame, *, strict: bool) -> dict[str, object]:
+    return attributes(frame, EMPTY_ATTRS, strict=strict)
+
+
+def _build_enumeration(frame: Frame, *, strict: bool) -> dict[str, object]:
+    return {**attributes(frame, ENUMERATION_ATTRS, strict=strict), "items": tuple(frame.all("Item"))}
+
+
+def _build_item(frame: Frame, *, strict: bool) -> Item:
+    return Item(**attributes(frame, ITEM_ATTRS, strict=strict))
+
+
+def _build_category(frame: Frame, *, strict: bool) -> Category:
+    return Category(**attributes(frame, CATEGORY_ATTRS, strict=strict))
+
+
+def _build_default_experiment(frame: Frame, *, strict: bool) -> DefaultExperiment:
+    return DefaultExperiment(**attributes(frame, DEFAULT_EXPERIMENT_ATTRS, strict=strict))
+
+
+def _build_unit_definitions(frame: Frame, *, strict: bool) -> tuple[Unit, ...]:
+    attributes(frame, EMPTY_ATTRS, strict=strict)
+    return tuple(frame.all("Unit"))
+
+
+def _build_type_definitions(frame: Frame, *, strict: bool) -> tuple[TypeDefinition, ...]:
+    attributes(frame, EMPTY_ATTRS, strict=strict)
+    return tuple(frame.all("SimpleType"))
+
+
+def _build_log_categories(frame: Frame, *, strict: bool) -> tuple[Category, ...]:
+    attributes(frame, EMPTY_ATTRS, strict=strict)
+    return tuple(frame.all("Category"))
+
+
+def build_header(frame: Frame, *, strict: bool) -> ModelHeader:
+    """Build the :class:`ModelHeader` from the root element and the children read so far."""
+    units = frame.one("UnitDefinitions", strict=strict)
+    types = frame.one("TypeDefinitions", strict=strict)
+    categories = frame.one("LogCategories", strict=strict)
+    return ModelHeader(
+        **attributes(frame, ROOT_ATTRS, strict=strict),
+        model_exchange=frame.one("ModelExchange", strict=strict),
+        co_simulation=frame.one("CoSimulation", strict=strict),
+        unit_definitions=units or (),
+        type_definitions=types or (),
+        log_categories=categories or (),
+        default_experiment=frame.one("DefaultExperiment", strict=strict),
+    )
+
+
+_TYPE_KINDS: Mapping[str, type[TypeDefinition]] = MappingProxyType(
     {
-        "fmiVersion": ("fmi_version", _text),
-        "modelName": ("model_name", _text),
-        "guid": ("guid", _text),
-        "description": ("description", _text),
-        "author": ("author", _text),
-        "version": ("version", _text),
-        "copyright": ("copyright", _text),
-        "license": ("license", _text),
-        "generationTool": ("generation_tool", _text),
-        "generationDateAndTime": ("generation_date_and_time", _convert.to_datetime),
-        "variableNamingConvention": ("variable_naming_convention", _naming),
-        "numberOfEventIndicators": ("number_of_event_indicators", _convert.to_unsigned_int),
+        "Real": RealType,
+        "Integer": IntegerType,
+        "Boolean": BooleanType,
+        "String": StringType,
+        "Enumeration": EnumerationType,
     }
 )
 
-# Required by the XSD. Missing ones become "" in lenient mode (ADR 0003).
-_REQUIRED_TEXT = ("model_name", "guid")
-
-
-def build_header(attrs: dict[str, str], *, line: int, column: int) -> ModelHeader:
-    """Build a :class:`ModelHeader` from the root element's attributes."""
-    fields: dict[str, Any] = {}
-    for xml_name, raw in attrs.items():
-        spec = _ROOT_ATTRIBUTES.get(xml_name)
-        if spec is None:
-            continue
-        field, convert = spec
-        try:
-            fields[field] = convert(raw)
-        except ValueError as exc:
-            raise ParseError(
-                f"invalid {xml_name}={raw!r} on fmiModelDescription: {exc}", line=line, column=column
-            ) from None
-    for field in _REQUIRED_TEXT:
-        fields.setdefault(field, "")
-    return ModelHeader(**fields)
+HEADER_GRAMMAR = Grammar(
+    root="fmiModelDescription",
+    stop_at="ModelVariables",
+    build_root=build_header,
+    children={
+        "fmiModelDescription": {
+            "ModelExchange": _build_model_exchange,
+            "CoSimulation": _build_co_simulation,
+            "UnitDefinitions": _build_unit_definitions,
+            "TypeDefinitions": _build_type_definitions,
+            "LogCategories": _build_log_categories,
+            "DefaultExperiment": _build_default_experiment,
+            "VendorAnnotations": SKIP,
+        },
+        "ModelExchange": {"SourceFiles": _build_source_files},
+        "CoSimulation": {"SourceFiles": _build_source_files},
+        "SourceFiles": {"File": _build_file},
+        "UnitDefinitions": {"Unit": _build_unit},
+        "Unit": {"BaseUnit": _build_base_unit, "DisplayUnit": _build_display_unit},
+        "TypeDefinitions": {"SimpleType": _build_simple_type},
+        "SimpleType": {
+            "Real": _build_real,
+            "Integer": _build_integer,
+            "Boolean": _build_no_attributes,
+            "String": _build_no_attributes,
+            "Enumeration": _build_enumeration,
+        },
+        "Enumeration": {"Item": _build_item},
+        "LogCategories": {"Category": _build_category},
+    },
+)
