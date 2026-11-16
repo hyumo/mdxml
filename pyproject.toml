@@ -1,14 +1,54 @@
 [project]
 name = "mdxml"
 version = "0.1.0"
-description = "Add your description here"
+description = "Fast, zero-dependency, streaming parser for FMI 2.0 and 3.0 modelDescription.xml files"
 readme = "README.md"
-requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
 dependencies = []
+keywords = ["fmi", "fmu", "modelDescription", "xml", "parser", "co-simulation"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
 
 [project.scripts]
 mdxml = "mdxml:main"
 
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "mypy>=1.13",
+    "pyright>=1.1.390",
+]
+
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+xfail_strict = true
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+files = ["src", "tests", "scripts"]
+
+[tool.pyright]
+include = ["src", "tests", "scripts"]
+typeCheckingMode = "strict"
+pythonVersion = "3.10"
