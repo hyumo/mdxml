@@ -17,7 +17,7 @@ from typing import Any, cast
 
 from mdxml import _convert as c
 from mdxml._grammar import SKIP, Grammar
-from mdxml._schema import Attr, Frame, attributes, table
+from mdxml._schema import EMPTY, Attr, Frame, attributes, double, flag, required_text, table, text
 
 # --- Enums ----------------------------------------------------------------------------------
 
@@ -228,122 +228,104 @@ class ModelHeader:
 # --- Attribute tables -----------------------------------------------------------------------
 
 
-def _required_text(xml: str, field: str) -> Attr:
-    return Attr(xml, field, c.to_text, required=True, fallback="")
-
-
-def _text(xml: str, field: str) -> Attr:
-    return Attr(xml, field, c.to_text)
-
-
-def _flag(xml: str, field: str) -> Attr:
-    return Attr(xml, field, c.to_bool)
-
-
-def _double(xml: str, field: str) -> Attr:
-    return Attr(xml, field, c.to_double)
-
-
 def _int(xml: str, field: str) -> Attr:
-    return Attr(xml, field, c.to_int)
+    return Attr(xml, field, c.INT)
 
 
 ROOT_ATTRS = table(
-    _required_text("fmiVersion", "fmi_version"),
-    _required_text("modelName", "model_name"),
-    _required_text("guid", "guid"),
-    _text("description", "description"),
-    _text("author", "author"),
-    _text("version", "version"),
-    _text("copyright", "copyright"),
-    _text("license", "license"),
-    _text("generationTool", "generation_tool"),
+    required_text("fmiVersion", "fmi_version"),
+    required_text("modelName", "model_name"),
+    required_text("guid", "guid"),
+    text("description", "description"),
+    text("author", "author"),
+    text("version", "version"),
+    text("copyright", "copyright"),
+    text("license", "license"),
+    text("generationTool", "generation_tool"),
     Attr("generationDateAndTime", "generation_date_and_time", c.to_datetime),
     Attr("variableNamingConvention", "variable_naming_convention", c.EnumConverter(VariableNamingConvention)),
-    Attr("numberOfEventIndicators", "number_of_event_indicators", c.to_unsigned_int),
+    Attr("numberOfEventIndicators", "number_of_event_indicators", c.UNSIGNED_INT),
 )
 
 _COMMON_INTERFACE_ATTRS = (
-    _required_text("modelIdentifier", "model_identifier"),
-    _flag("needsExecutionTool", "needs_execution_tool"),
-    _flag("canBeInstantiatedOnlyOncePerProcess", "can_be_instantiated_only_once_per_process"),
-    _flag("canNotUseMemoryManagementFunctions", "can_not_use_memory_management_functions"),
-    _flag("canGetAndSetFMUstate", "can_get_and_set_fmu_state"),
-    _flag("canSerializeFMUstate", "can_serialize_fmu_state"),
-    _flag("providesDirectionalDerivative", "provides_directional_derivative"),
+    required_text("modelIdentifier", "model_identifier"),
+    flag("needsExecutionTool", "needs_execution_tool"),
+    flag("canBeInstantiatedOnlyOncePerProcess", "can_be_instantiated_only_once_per_process"),
+    flag("canNotUseMemoryManagementFunctions", "can_not_use_memory_management_functions"),
+    flag("canGetAndSetFMUstate", "can_get_and_set_fmu_state"),
+    flag("canSerializeFMUstate", "can_serialize_fmu_state"),
+    flag("providesDirectionalDerivative", "provides_directional_derivative"),
 )
 
 MODEL_EXCHANGE_ATTRS = table(
     *_COMMON_INTERFACE_ATTRS,
-    _flag("completedIntegratorStepNotNeeded", "completed_integrator_step_not_needed"),
+    flag("completedIntegratorStepNotNeeded", "completed_integrator_step_not_needed"),
 )
 
 CO_SIMULATION_ATTRS = table(
     *_COMMON_INTERFACE_ATTRS,
-    _flag("canHandleVariableCommunicationStepSize", "can_handle_variable_communication_step_size"),
-    _flag("canInterpolateInputs", "can_interpolate_inputs"),
-    Attr("maxOutputDerivativeOrder", "max_output_derivative_order", c.to_unsigned_int),
-    _flag("canRunAsynchronuously", "can_run_asynchronuously"),
+    flag("canHandleVariableCommunicationStepSize", "can_handle_variable_communication_step_size"),
+    flag("canInterpolateInputs", "can_interpolate_inputs"),
+    Attr("maxOutputDerivativeOrder", "max_output_derivative_order", c.UNSIGNED_INT),
+    flag("canRunAsynchronuously", "can_run_asynchronuously"),
 )
 
-FILE_ATTRS = table(_required_text("name", "name"))
+FILE_ATTRS = table(required_text("name", "name"))
 
-UNIT_ATTRS = table(_required_text("name", "name"))
+UNIT_ATTRS = table(required_text("name", "name"))
 
 BASE_UNIT_ATTRS = table(
     *(_int(symbol, symbol) for symbol in ("kg", "m", "s", "A", "K", "mol", "cd", "rad")),
-    _double("factor", "factor"),
-    _double("offset", "offset"),
+    double("factor", "factor"),
+    double("offset", "offset"),
 )
 
 DISPLAY_UNIT_ATTRS = table(
-    _required_text("name", "name"),
-    _double("factor", "factor"),
-    _double("offset", "offset"),
+    required_text("name", "name"),
+    double("factor", "factor"),
+    double("offset", "offset"),
 )
 
 SIMPLE_TYPE_ATTRS = table(
-    _required_text("name", "name"),
-    _text("description", "description"),
+    required_text("name", "name"),
+    text("description", "description"),
 )
 
 REAL_ATTRS = table(
-    _text("quantity", "quantity"),
-    _text("unit", "unit"),
-    _text("displayUnit", "display_unit"),
-    _flag("relativeQuantity", "relative_quantity"),
-    _double("min", "min"),
-    _double("max", "max"),
-    _double("nominal", "nominal"),
-    _flag("unbounded", "unbounded"),
+    text("quantity", "quantity"),
+    text("unit", "unit"),
+    text("displayUnit", "display_unit"),
+    flag("relativeQuantity", "relative_quantity"),
+    double("min", "min"),
+    double("max", "max"),
+    double("nominal", "nominal"),
+    flag("unbounded", "unbounded"),
 )
 
 INTEGER_ATTRS = table(
-    _text("quantity", "quantity"),
+    text("quantity", "quantity"),
     _int("min", "min"),
     _int("max", "max"),
 )
 
-ENUMERATION_ATTRS = table(_text("quantity", "quantity"))
+ENUMERATION_ATTRS = table(text("quantity", "quantity"))
 
 ITEM_ATTRS = table(
-    _required_text("name", "name"),
-    Attr("value", "value", c.to_int, required=True),
-    _text("description", "description"),
+    required_text("name", "name"),
+    Attr("value", "value", c.INT, required=True),
+    text("description", "description"),
 )
 
-EMPTY_ATTRS = table()
-
 CATEGORY_ATTRS = table(
-    _required_text("name", "name"),
-    _text("description", "description"),
+    required_text("name", "name"),
+    text("description", "description"),
 )
 
 DEFAULT_EXPERIMENT_ATTRS = table(
-    _double("startTime", "start_time"),
-    _double("stopTime", "stop_time"),
-    _double("tolerance", "tolerance"),
-    _double("stepSize", "step_size"),
+    double("startTime", "start_time"),
+    double("stopTime", "stop_time"),
+    double("tolerance", "tolerance"),
+    double("stepSize", "step_size"),
 )
 
 
@@ -368,7 +350,7 @@ def _build_co_simulation(frame: Frame, *, strict: bool) -> CoSimulation:
 
 
 def _build_source_files(frame: Frame, *, strict: bool) -> tuple[str, ...]:
-    attributes(frame, EMPTY_ATTRS, strict=strict)
+    attributes(frame, EMPTY, strict=strict)
     return tuple(frame.all("File"))
 
 
@@ -413,7 +395,7 @@ def _build_integer(frame: Frame, *, strict: bool) -> dict[str, object]:
 
 
 def _build_no_attributes(frame: Frame, *, strict: bool) -> dict[str, object]:
-    return attributes(frame, EMPTY_ATTRS, strict=strict)
+    return attributes(frame, EMPTY, strict=strict)
 
 
 def _build_enumeration(frame: Frame, *, strict: bool) -> dict[str, object]:
@@ -433,17 +415,17 @@ def _build_default_experiment(frame: Frame, *, strict: bool) -> DefaultExperimen
 
 
 def _build_unit_definitions(frame: Frame, *, strict: bool) -> tuple[Unit, ...]:
-    attributes(frame, EMPTY_ATTRS, strict=strict)
+    attributes(frame, EMPTY, strict=strict)
     return tuple(frame.all("Unit"))
 
 
 def _build_type_definitions(frame: Frame, *, strict: bool) -> tuple[TypeDefinition, ...]:
-    attributes(frame, EMPTY_ATTRS, strict=strict)
+    attributes(frame, EMPTY, strict=strict)
     return tuple(frame.all("SimpleType"))
 
 
 def _build_log_categories(frame: Frame, *, strict: bool) -> tuple[Category, ...]:
-    attributes(frame, EMPTY_ATTRS, strict=strict)
+    attributes(frame, EMPTY, strict=strict)
     return tuple(frame.all("Category"))
 
 

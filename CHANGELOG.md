@@ -16,6 +16,13 @@ between minor versions.
   (`ModelExchange`, `CoSimulation`) with their source files, unit definitions,
   type definitions, log categories and the default experiment, with XSD
   defaults applied. Vendor annotations are skipped.
+- `read_header` returns the full FMI 3.0 Model Header (`mdxml.fmi3.ModelHeader`):
+  Interface Types including `ScheduledExecution`, units with `inverse` display
+  units, all fifteen type definition kinds (`Float32Type` … `ClockType`), log
+  categories and the default experiment. `Annotations` are skipped. Any
+  `fmiVersion` of major version 3 is read; strict mode checks it against the
+  XSD pattern. `read_header` is typed as returning
+  `fmi2.ModelHeader | fmi3.ModelHeader`.
 - Lenient parsing by default; `strict=True` (CLI: `--strict`) raises
   `ParseError` on unknown elements and attributes, missing required attributes,
   out-of-range enum values and values that can't be read.

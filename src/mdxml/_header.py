@@ -9,22 +9,30 @@ from mdxml._schema import Frame
 from mdxml._source import Source, open_source
 from mdxml.fmi2._header import HEADER_GRAMMAR as FMI2_HEADER_GRAMMAR
 from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
+from mdxml.fmi3._header import HEADER_GRAMMAR as FMI3_HEADER_GRAMMAR
+from mdxml.fmi3._header import ModelHeader as Fmi3ModelHeader
 
 ROOT = "fmiModelDescription"
 
+AnyModelHeader = Fmi2ModelHeader | Fmi3ModelHeader
+"""The Model Header of either FMI Version."""
 
-def _choose_header_grammar(root: Frame) -> Grammar[Fmi2ModelHeader]:
+
+def _choose_header_grammar(root: Frame) -> Grammar[AnyModelHeader]:
     if root.tag != ROOT:
         raise root.error(f"root element is <{root.tag}>, expected <{ROOT}>")
     fmi_version = root.attrs.get("fmiVersion")
     if fmi_version is None:
         raise root.error(f"<{ROOT}> has no fmiVersion attribute")
     major = fmi_version.strip().split(".", 1)[0]
+    grammar: Grammar[AnyModelHeader]
     if major == "2":
-        return FMI2_HEADER_GRAMMAR
-    if major == "3":
-        raise UnsupportedFmiVersion(fmi_version, "FMI 3 support is not implemented yet")
-    raise UnsupportedFmiVersion(fmi_version)
+        grammar = FMI2_HEADER_GRAMMAR
+    elif major == "3":
+        grammar = FMI3_HEADER_GRAMMAR
+    else:
+        raise UnsupportedFmiVersion(fmi_version)
+    return grammar
 
 
 def read_header(
@@ -33,8 +41,11 @@ def read_header(
     member: str | None = None,
     strict: bool = False,
     max_xml_bytes: int = _reader.DEFAULT_MAX_XML_BYTES,
-) -> Fmi2ModelHeader:
+) -> AnyModelHeader:
     """Read the Model Header of an FMU.
+
+    Returns an :class:`mdxml.fmi2.ModelHeader` or :class:`mdxml.fmi3.ModelHeader`,
+    depending on the FMI Version declared in the Model Description.
 
     ``src`` is a path to a ``.fmu`` zip, an unzipped FMU directory or a
     ``modelDescription.xml`` file; a binary file-like object; or bytes. Zips

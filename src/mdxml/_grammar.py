@@ -16,7 +16,7 @@ from typing import Generic, Protocol, TypeVar
 
 from mdxml import _reader
 from mdxml._errors import ParseError
-from mdxml._schema import Frame
+from mdxml._schema import EMPTY, Frame, attributes
 
 R = TypeVar("R")
 R_co = TypeVar("R_co", covariant=True)
@@ -41,13 +41,32 @@ SKIP = _Skip()
 ChildRule = Builder[object] | _Skip
 
 
+class Collect:
+    """Builder for a list element: no attributes of its own, returns its children in document order.
+
+    With a ``tag``, only children with that tag; without one, all of them.
+    """
+
+    __slots__ = ("_tag",)
+
+    def __init__(self, tag: str | None = None) -> None:
+        self._tag = tag
+
+    def __call__(self, frame: Frame, /, *, strict: bool) -> tuple[object, ...]:
+        """Return the built children."""
+        attributes(frame, EMPTY, strict=strict)
+        if self._tag is None:
+            return tuple(obj for _, obj in frame.children)
+        return tuple(frame.all(self._tag))
+
+
 @dataclass(frozen=True, slots=True)
-class Grammar(Generic[R]):
+class Grammar(Generic[R_co]):
     """The elements of one document part, e.g. the FMI 2 Model Header."""
 
     root: str
     stop_at: str
-    build_root: Builder[R]
+    build_root: Builder[R_co]
     children: Mapping[str, Mapping[str, ChildRule]]
 
     def __post_init__(self) -> None:
