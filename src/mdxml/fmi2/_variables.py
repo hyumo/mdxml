@@ -16,8 +16,10 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from mdxml import _convert as c
-from mdxml._grammar import SKIP, Grammar
+from mdxml._grammar import SKIP, Builder, ChildRule, Grammar
 from mdxml._schema import Attr, AttrTable, Frame, attributes, double, flag, required_text, table, text
+from mdxml.fmi2 import _annotations as annotations_rule
+from mdxml.fmi2._annotations import ToolAnnotation
 
 # --- Enums ----------------------------------------------------------------------------------
 
@@ -109,6 +111,8 @@ class ScalarVariable:
     """``initial`` exactly as written; see :attr:`effective_initial`."""
     can_handle_multiple_set_per_time_instant: bool | None = None
     declared_type: str | None = None
+    annotations: tuple[ToolAnnotation, ...] | None = None
+    """``None`` unless read with ``annotations=True``."""
 
     @property
     def effective_initial(self) -> Initial | str | None:
@@ -262,31 +266,53 @@ class _Kind:
         return self._cls, attributes(frame, self._attrs, strict=strict)
 
 
-def build_scalar_variable(frame: Frame, *, strict: bool) -> VariableFields:
-    """Merge a ``ScalarVariable``'s attributes with its typed child's."""
-    common = attributes(frame, SCALAR_VARIABLE_ATTRS, strict=strict)
-    kinds = [obj for tag, obj in frame.children if tag in _KINDS]
-    if not kinds:
-        raise frame.error(
-            f"<ScalarVariable name={common['name']!r}> has no Real, Integer, Boolean, String or Enumeration"
-        )
-    if len(kinds) > 1 and strict:
-        raise frame.error(f"<ScalarVariable name={common['name']!r}> has {len(kinds)} type elements, expected one")
-    cls, kind_fields = cast("VariableFields", kinds[0])
-    return cls, {**common, **kind_fields}
+class _ScalarVariableBuilder(Builder[VariableFields]):
+    """Merges a ``ScalarVariable``'s attributes with its typed child's (and its annotations, if requested)."""
+
+    __slots__ = ("_annotations",)
+
+    def __init__(self, *, annotations: bool) -> None:
+        self._annotations = annotations
+
+    def __call__(self, frame: Frame, /, *, strict: bool) -> VariableFields:
+        """Return the variable's class and fields."""
+        common = attributes(frame, SCALAR_VARIABLE_ATTRS, strict=strict)
+        kinds = [obj for tag, obj in frame.children if tag in _KINDS]
+        if not kinds:
+            raise frame.error(
+                f"<ScalarVariable name={common['name']!r}> has no Real, Integer, Boolean, String or Enumeration"
+            )
+        if len(kinds) > 1 and strict:
+            raise frame.error(f"<ScalarVariable name={common['name']!r}> has {len(kinds)} type elements, expected one")
+        cls, kind_fields = cast("VariableFields", kinds[0])
+        fields = {**common, **kind_fields}
+        if self._annotations:
+            fields["annotations"] = frame.one("Annotations", strict=strict) or ()
+        return cls, fields
 
 
-VARIABLE_GRAMMAR = Grammar(
-    root="ScalarVariable",
-    stop_at="",  # a ScalarVariable is always read whole
-    build_root=build_scalar_variable,
-    children={
-        "ScalarVariable": {**{tag: _Kind(tag) for tag in _KINDS}, "Annotations": SKIP},
-    },
-)
+def _variable_grammars(*, annotations: bool) -> Mapping[str, Grammar[VariableFields]]:
+    children: dict[str, dict[str, ChildRule]] = {
+        "ScalarVariable": {
+            **{tag: _Kind(tag) for tag in _KINDS},
+            "Annotations": annotations_rule.CONTAINER if annotations else SKIP,
+        },
+        "Annotations": {"Tool": annotations_rule.TOOL},
+    }
+    grammar = Grammar(
+        root="ScalarVariable",
+        stop_at="",  # a ScalarVariable is always read whole
+        build_root=_ScalarVariableBuilder(annotations=annotations),
+        children=children,
+    )
+    return MappingProxyType({"ScalarVariable": grammar})
 
-VARIABLE_GRAMMARS: Mapping[str, Grammar[VariableFields]] = MappingProxyType({"ScalarVariable": VARIABLE_GRAMMAR})
-"""The grammar for each variable element, keyed by element name."""
+
+VARIABLE_GRAMMARS = _variable_grammars(annotations=False)
+"""The grammar for each variable element, keyed by element name; Tool Annotations are skipped."""
+
+VARIABLE_GRAMMARS_WITH_ANNOTATIONS = _variable_grammars(annotations=True)
+"""The same, keeping each variable's Tool Annotations."""
 
 
 def filter_values(element: str, attrs: Mapping[str, str]) -> tuple[str, str]:

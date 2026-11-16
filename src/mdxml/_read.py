@@ -26,13 +26,18 @@ def read(
     *,
     member: str | None = None,
     strict: bool = False,
+    annotations: bool = False,
     max_xml_bytes: int = _reader.DEFAULT_MAX_XML_BYTES,
 ) -> AnyModelDescription:
     """Read an FMU's whole Model Description: Model Header, Model Variables and Model Structure.
 
     ``src``, ``member``, ``strict`` and ``max_xml_bytes`` work as for
     :func:`mdxml.read_header`. The document is read in one streaming pass and
-    only the parsed objects are kept, never the XML. Annotations are skipped.
+    only the parsed objects are kept, never the XML.
+
+    Annotations are skipped unless ``annotations=True``. Then the FMI 2
+    header's ``vendor_annotations``, FMI 3's model-level ``annotations`` and
+    every variable's ``annotations`` hold their content as raw XML.
 
     Returns an :class:`mdxml.fmi2.ModelDescription` or
     :class:`mdxml.fmi3.ModelDescription`, depending on the FMI Version.
@@ -40,7 +45,13 @@ def read(
     _reader.check_max_xml_bytes(max_xml_bytes)
     no_filter = VariableFilter(causality=None, variability=None, name_prefix=None)
     iterator = VariableIterator(
-        src, member=member, strict=strict, max_xml_bytes=max_xml_bytes, variable_filter=no_filter, read_structure=True
+        src,
+        member=member,
+        strict=strict,
+        max_xml_bytes=max_xml_bytes,
+        variable_filter=no_filter,
+        read_structure=True,
+        annotations=annotations,
     )
     with iterator:
         variables = tuple(iterator)
@@ -60,4 +71,5 @@ def read(
         header=header,
         variables=cast("tuple[Fmi3Variable, ...]", variables),
         model_structure=structure or Fmi3ModelStructure(),
+        annotations=(iterator.model_annotations or ()) if annotations else None,
     )

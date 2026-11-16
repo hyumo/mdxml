@@ -16,9 +16,11 @@ from types import MappingProxyType
 from typing import Any, cast
 
 from mdxml import _convert as c
-from mdxml._grammar import SKIP, Grammar
+from mdxml._grammar import SKIP, Builder, Grammar
 from mdxml._lookup import Named
 from mdxml._schema import EMPTY, Attr, Frame, attributes, double, flag, required_text, table, text
+from mdxml.fmi2 import _annotations as annotations_rule
+from mdxml.fmi2._annotations import ToolAnnotation
 
 # --- Enums ----------------------------------------------------------------------------------
 
@@ -224,6 +226,8 @@ class ModelHeader:
     type_definitions: Named[TypeDefinition] = field(default_factory=Named)
     log_categories: Named[Category] = field(default_factory=Named)
     default_experiment: DefaultExperiment | None = None
+    vendor_annotations: tuple[ToolAnnotation, ...] | None = None
+    """``None`` unless read with ``annotations=True``."""
 
     @property
     def instantiation_token(self) -> str:
@@ -442,20 +446,30 @@ def _build_log_categories(frame: Frame, *, strict: bool) -> tuple[Category, ...]
     return tuple(frame.all("Category"))
 
 
-def build_header(frame: Frame, *, strict: bool) -> ModelHeader:
-    """Build the :class:`ModelHeader` from the root element and the children read so far."""
-    units = frame.one("UnitDefinitions", strict=strict)
-    types = frame.one("TypeDefinitions", strict=strict)
-    categories = frame.one("LogCategories", strict=strict)
-    return ModelHeader(
-        **attributes(frame, ROOT_ATTRS, strict=strict),
-        model_exchange=frame.one("ModelExchange", strict=strict),
-        co_simulation=frame.one("CoSimulation", strict=strict),
-        unit_definitions=Named(units or ()),
-        type_definitions=Named(types or ()),
-        log_categories=Named(categories or ()),
-        default_experiment=frame.one("DefaultExperiment", strict=strict),
-    )
+class _HeaderBuilder(Builder[ModelHeader]):
+    """Builds the :class:`ModelHeader` from the root element and the children read so far."""
+
+    __slots__ = ("_annotations",)
+
+    def __init__(self, *, annotations: bool) -> None:
+        self._annotations = annotations
+
+    def __call__(self, frame: Frame, /, *, strict: bool) -> ModelHeader:
+        """Build the header."""
+        units = frame.one("UnitDefinitions", strict=strict)
+        types = frame.one("TypeDefinitions", strict=strict)
+        categories = frame.one("LogCategories", strict=strict)
+        vendor_annotations = frame.one("VendorAnnotations", strict=strict) or () if self._annotations else None
+        return ModelHeader(
+            **attributes(frame, ROOT_ATTRS, strict=strict),
+            model_exchange=frame.one("ModelExchange", strict=strict),
+            co_simulation=frame.one("CoSimulation", strict=strict),
+            unit_definitions=Named(units or ()),
+            type_definitions=Named(types or ()),
+            log_categories=Named(categories or ()),
+            default_experiment=frame.one("DefaultExperiment", strict=strict),
+            vendor_annotations=vendor_annotations,
+        )
 
 
 _TYPE_KINDS: Mapping[str, type[TypeDefinition]] = MappingProxyType(
@@ -468,34 +482,44 @@ _TYPE_KINDS: Mapping[str, type[TypeDefinition]] = MappingProxyType(
     }
 )
 
-HEADER_GRAMMAR = Grammar(
-    root="fmiModelDescription",
-    stop_at="ModelVariables",
-    build_root=build_header,
-    children={
-        "fmiModelDescription": {
-            "ModelExchange": _build_model_exchange,
-            "CoSimulation": _build_co_simulation,
-            "UnitDefinitions": _build_unit_definitions,
-            "TypeDefinitions": _build_type_definitions,
-            "LogCategories": _build_log_categories,
-            "DefaultExperiment": _build_default_experiment,
-            "VendorAnnotations": SKIP,
+
+def _header_grammar(*, annotations: bool) -> Grammar[ModelHeader]:
+    return Grammar(
+        root="fmiModelDescription",
+        stop_at="ModelVariables",
+        build_root=_HeaderBuilder(annotations=annotations),
+        children={
+            "fmiModelDescription": {
+                "ModelExchange": _build_model_exchange,
+                "CoSimulation": _build_co_simulation,
+                "UnitDefinitions": _build_unit_definitions,
+                "TypeDefinitions": _build_type_definitions,
+                "LogCategories": _build_log_categories,
+                "DefaultExperiment": _build_default_experiment,
+                "VendorAnnotations": annotations_rule.CONTAINER if annotations else SKIP,
+            },
+            "VendorAnnotations": {"Tool": annotations_rule.TOOL},
+            "ModelExchange": {"SourceFiles": _build_source_files},
+            "CoSimulation": {"SourceFiles": _build_source_files},
+            "SourceFiles": {"File": _build_file},
+            "UnitDefinitions": {"Unit": _build_unit},
+            "Unit": {"BaseUnit": _build_base_unit, "DisplayUnit": _build_display_unit},
+            "TypeDefinitions": {"SimpleType": _build_simple_type},
+            "SimpleType": {
+                "Real": _build_real,
+                "Integer": _build_integer,
+                "Boolean": _build_no_attributes,
+                "String": _build_no_attributes,
+                "Enumeration": _build_enumeration,
+            },
+            "Enumeration": {"Item": _build_item},
+            "LogCategories": {"Category": _build_category},
         },
-        "ModelExchange": {"SourceFiles": _build_source_files},
-        "CoSimulation": {"SourceFiles": _build_source_files},
-        "SourceFiles": {"File": _build_file},
-        "UnitDefinitions": {"Unit": _build_unit},
-        "Unit": {"BaseUnit": _build_base_unit, "DisplayUnit": _build_display_unit},
-        "TypeDefinitions": {"SimpleType": _build_simple_type},
-        "SimpleType": {
-            "Real": _build_real,
-            "Integer": _build_integer,
-            "Boolean": _build_no_attributes,
-            "String": _build_no_attributes,
-            "Enumeration": _build_enumeration,
-        },
-        "Enumeration": {"Item": _build_item},
-        "LogCategories": {"Category": _build_category},
-    },
-)
+    )
+
+
+HEADER_GRAMMAR = _header_grammar(annotations=False)
+"""The Model Header grammar; Tool Annotations are skipped."""
+
+HEADER_GRAMMAR_WITH_ANNOTATIONS = _header_grammar(annotations=True)
+"""The Model Header grammar that keeps ``VendorAnnotations``."""

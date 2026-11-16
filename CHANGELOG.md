@@ -16,6 +16,12 @@ between minor versions.
   (`ModelExchange`, `CoSimulation`) with their source files, unit definitions,
   type definitions, log categories and the default experiment, with XSD
   defaults applied. Vendor annotations are skipped.
+- `annotations=True` on `read_header`, `iter_variables` and `read` (CLI:
+  `--annotations`) keeps Tool Annotations as their exact raw XML instead of
+  skipping them: `fmi2.ToolAnnotation(name, xml)` for FMI 2
+  `VendorAnnotations` and variable `Annotations`, `fmi3.Annotation(type, xml)`
+  for FMI 3 variable and model-level `Annotations` (the latter only from
+  `read`). Without it, the fields are `None` and nothing is kept.
 - Version-independent `typing.Protocol`s: `mdxml.ModelHeader`,
   `mdxml.ModelVariable` and `mdxml.InterfaceType`, satisfied by the FMI 2.0 and
   FMI 3.0 classes (also usable with `isinstance`). FMI 2.0 headers expose `guid`

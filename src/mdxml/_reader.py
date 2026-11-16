@@ -28,19 +28,47 @@ class Handler(Protocol):
 
 
 class Position(Protocol):
-    """Where the parser currently is, for error messages."""
+    """Where the parser currently is, for error messages and for keeping raw XML."""
 
     @property
     def line(self) -> int: ...
     @property
     def column(self) -> int: ...
+    @property
+    def byte_index(self) -> int:
+        """Absolute byte offset of the current event in the document."""
+        ...
+
+    def keep_from(self, index: int) -> None:
+        """Start keeping the document's bytes from ``index`` on, so they can be sliced later."""
+        ...
+
+    def kept(self, start: int, end: int) -> bytes:
+        """Return the document's bytes ``[start, end)``, which must lie in what's being kept."""
+        ...
+
+    def release(self) -> None:
+        """Stop keeping bytes."""
+        ...
 
 
 class _ExpatPosition:
-    __slots__ = ("_parser",)
+    """The live parser position, plus the raw bytes still needed for :meth:`kept`.
+
+    Before each chunk is fed, the bytes after expat's last complete token are
+    carried over (expat reports a start tag only once it's whole, by which time
+    it may have begun in the previous chunk). While :meth:`keep_from` is active,
+    everything from that index on is kept as well.
+    """
+
+    __slots__ = ("_buffer", "_buffer_start", "_keep_from", "_parser")
 
     def __init__(self, parser: expat.XMLParserType) -> None:
         self._parser = parser
+        self._buffer = bytearray()
+        self._buffer_start = 0
+        """Absolute offset of ``_buffer[0]`` in the document."""
+        self._keep_from: int | None = None
 
     @property
     def line(self) -> int:
@@ -49,6 +77,30 @@ class _ExpatPosition:
     @property
     def column(self) -> int:
         return self._parser.CurrentColumnNumber + 1
+
+    @property
+    def byte_index(self) -> int:
+        return self._parser.CurrentByteIndex
+
+    def next_chunk(self, chunk: bytes) -> None:
+        """Drop the bytes no longer needed, then append the chunk about to be fed."""
+        # Outside a callback, expat's byte index points just past its last complete token.
+        cut = max(self._parser.CurrentByteIndex, self._buffer_start)
+        if self._keep_from is not None:
+            cut = min(cut, self._keep_from)
+        if cut > self._buffer_start:
+            del self._buffer[: cut - self._buffer_start]
+            self._buffer_start = cut
+        self._buffer += chunk
+
+    def keep_from(self, index: int) -> None:
+        self._keep_from = index
+
+    def kept(self, start: int, end: int) -> bytes:
+        return bytes(self._buffer[start - self._buffer_start : end - self._buffer_start])
+
+    def release(self) -> None:
+        self._keep_from = None
 
 
 def check_max_xml_bytes(max_xml_bytes: object) -> int:
@@ -103,7 +155,8 @@ def feed(
     parser = _create_parser()
     parser.StartElementHandler = handler.start
     parser.EndElementHandler = handler.end
-    position_sink.append(_ExpatPosition(parser))
+    position = _ExpatPosition(parser)
+    position_sink.append(position)
     total = 0
     try:
         # Ask for one byte more than the budget allows, so going over is detected
@@ -112,6 +165,7 @@ def feed(
             total += len(chunk)
             if total > max_xml_bytes:
                 raise UnsafeInput(f"Model Description is larger than max_xml_bytes={max_xml_bytes}")
+            position.next_chunk(chunk)
             parser.Parse(chunk, False)  # noqa: FBT003 - expat only accepts isfinal positionally
             yield
         parser.Parse(b"", True)  # noqa: FBT003

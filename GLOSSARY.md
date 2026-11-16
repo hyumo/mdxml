@@ -17,7 +17,7 @@ The major version of the FMI standard a Model Description conforms to (2 or 3), 
 _Avoid_: schema version, spec version
 
 **Model Header**:
-Everything in a Model Description that comes before `ModelVariables`: the root attributes, the interface types (Model Exchange, Co-Simulation, Scheduled Execution), unit definitions, type definitions, log categories and the default experiment. Annotations are not part of it.
+Everything in a Model Description that comes before `ModelVariables`: the root attributes, the interface types (Model Exchange, Co-Simulation, Scheduled Execution), unit definitions, type definitions, log categories and the default experiment. Tool Annotations are not part of it, though FMI 2's `VendorAnnotations` (which come before `ModelVariables`) can be read along with it.
 _Avoid_: info, metadata, summary
 
 **Interface Type**:
@@ -37,7 +37,7 @@ A Model Variable's `initial` value: the one written in the file if present, othe
 _Avoid_: default initial
 
 **Tool Annotation**:
-A block of tool-specific XML inside an annotations element, identified by the tool's name. Its content has no schema.
+A block of tool-specific XML inside an annotations element: a `Tool` identified by its `name` in FMI 2, an `Annotation` identified by its `type` in FMI 3. Its content has no schema.
 _Avoid_: vendor data, extension
 
 **Model Structure**:
