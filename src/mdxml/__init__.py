@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mdxml import fmi2, fmi3
 from mdxml._cli import main
 from mdxml._dict import to_dict
 from mdxml._errors import MdxmlError, ParseError, UnsafeInput, UnsupportedFmiVersion
@@ -16,6 +17,8 @@ __all__ = [
     "Source",
     "UnsafeInput",
     "UnsupportedFmiVersion",
+    "fmi2",
+    "fmi3",
     "main",
     "read_header",
     "to_dict",

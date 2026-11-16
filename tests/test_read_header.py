@@ -8,15 +8,23 @@ import json
 import pkgutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 import mdxml
-from mdxml import ParseError, UnsupportedFmiVersion, read_header, to_dict
+from mdxml import ParseError, Source, UnsupportedFmiVersion, fmi2, to_dict
 from mdxml.fmi2 import DefaultExperiment, ModelHeader, VariableNamingConvention
 
 REFERENCE_FMUS = Path(__file__).parent / "data" / "reference_fmus"
 FMI2_XMLS = sorted(REFERENCE_FMUS.glob("*/FMI2.xml"))
+
+
+def read_header(src: Source, **options: Any) -> fmi2.ModelHeader:
+    """Read an FMI 2 Model Header, narrowed to the FMI 2 type."""
+    header = mdxml.read_header(src, **options)
+    assert isinstance(header, fmi2.ModelHeader)
+    return header
 
 
 def write_xml(tmp_path: Path, text: str) -> Path:
@@ -195,10 +203,9 @@ def test_unsupported_versions(tmp_path: Path, version: str) -> None:
     assert isinstance(info.value, mdxml.MdxmlError)
 
 
-def test_fmi3_is_not_supported_yet() -> None:
-    # Replaced by real FMI 3 support in issue #6.
-    with pytest.raises(UnsupportedFmiVersion, match="not implemented yet"):
-        read_header(REFERENCE_FMUS / "BouncingBall" / "FMI3.xml")
+def test_fmi3_returns_the_fmi3_header() -> None:
+    header = mdxml.read_header(REFERENCE_FMUS / "BouncingBall" / "FMI3.xml")
+    assert isinstance(header, mdxml.fmi3.ModelHeader)
 
 
 def test_malformed_xml_reports_line_and_column(tmp_path: Path) -> None:

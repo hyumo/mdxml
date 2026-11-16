@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written: every element and attribute of the FMI 3.0 Model Header, with non-default values,
+     and an <Annotations> child wherever the XSD allows one. -->
+<fmiModelDescription
+  fmiVersion="3.0"
+  modelName="Full3"
+  instantiationToken="{00000000-0000-0000-0000-000000000003}"
+  description="Covers every FMI 3 Model Header element and attribute"
+  author="mdxml tests"
+  version="3.2.1"
+  copyright="(c) nobody"
+  license="MIT"
+  generationTool="hand"
+  generationDateAndTime="2026-11-16T12:00:00Z"
+  variableNamingConvention="structured">
+
+  <ModelExchange
+    modelIdentifier="FullME"
+    needsExecutionTool="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canGetAndSetFMUState="true"
+    canSerializeFMUState="true"
+    providesDirectionalDerivatives="true"
+    providesAdjointDerivatives="true"
+    providesPerElementDependencies="true"
+    needsCompletedIntegratorStep="true"
+    providesEvaluateDiscreteStates="true">
+    <Annotations><Annotation type="com.example"><Anything/></Annotation></Annotations>
+  </ModelExchange>
+
+  <CoSimulation
+    modelIdentifier="FullCS"
+    needsExecutionTool="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canGetAndSetFMUState="true"
+    canSerializeFMUState="true"
+    providesDirectionalDerivatives="true"
+    providesAdjointDerivatives="true"
+    providesPerElementDependencies="true"
+    canHandleVariableCommunicationStepSize="true"
+    fixedInternalStepSize="0.001"
+    maxOutputDerivativeOrder="3"
+    recommendedIntermediateInputSmoothness="-1"
+    providesIntermediateUpdate="true"
+    mightReturnEarlyFromDoStep="true"
+    canReturnEarlyAfterIntermediateUpdate="true"
+    hasEventMode="true"
+    providesEvaluateDiscreteStates="true"/>
+
+  <ScheduledExecution
+    modelIdentifier="FullSE"
+    needsExecutionTool="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canGetAndSetFMUState="true"
+    canSerializeFMUState="true"
+    providesDirectionalDerivatives="true"
+    providesAdjointDerivatives="true"
+    providesPerElementDependencies="true"/>
+
+  <UnitDefinitions>
+    <Unit name="degC">
+      <BaseUnit kg="1" m="2" s="-3" A="-1" K="1" mol="2" cd="3" rad="4" factor="1.5" offset="273.15"/>
+      <DisplayUnit name="degF" factor="1.8" offset="32">
+        <Annotations><Annotation type="x"/></Annotations>
+      </DisplayUnit>
+      <DisplayUnit name="1/K" inverse="true"/>
+      <Annotations><Annotation type="x"/></Annotations>
+    </Unit>
+    <Unit name="dimensionless"/>
+  </UnitDefinitions>
+
+  <TypeDefinitions>
+    <Float32Type name="F32" description="single" quantity="Q" unit="degC" displayUnit="degF"
+                 relativeQuantity="true" unbounded="true" min="-1.5" max="1.5" nominal="0.5">
+      <Annotations><Annotation type="x"/></Annotations>
+    </Float32Type>
+    <Float64Type name="F64" min="-INF" max="1e300" nominal="2"/>
+    <Int8Type name="I8" quantity="Q" min="-128" max="127"/>
+    <UInt8Type name="U8" min="0" max="255"/>
+    <Int16Type name="I16" min="-32768" max="32767"/>
+    <UInt16Type name="U16" min="0" max="65535"/>
+    <Int32Type name="I32" min="-2147483648" max="2147483647"/>
+    <UInt32Type name="U32" min="0" max="4294967295"/>
+    <Int64Type name="I64" min="-9223372036854775808" max="9223372036854775807"/>
+    <UInt64Type name="U64" min="0" max="18446744073709551615"/>
+    <BooleanType name="B" description="a flag"/>
+    <StringType name="S"/>
+    <BinaryType name="Bin" mimeType="image/png" maxSize="1024"/>
+    <EnumerationType name="Mode" description="Operating mode" quantity="Mode" min="0" max="1">
+      <Item name="off" value="0" description="Switched off">
+        <Annotations><Annotation type="x"/></Annotations>
+      </Item>
+      <Item name="on" value="1"/>
+    </EnumerationType>
+    <ClockType name="Clk" description="a clock" canBeDeactivated="true" priority="2"
+               intervalVariability="countdown" intervalDecimal="0.1" shiftDecimal="0.05"
+               supportsFraction="true" resolution="1000" intervalCounter="100" shiftCounter="50"/>
+  </TypeDefinitions>
+
+  <LogCategories>
+    <Category name="logAll" description="Everything">
+      <Annotations><Annotation type="x"/></Annotations>
+    </Category>
+    <Category name="logNone"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0.5" stopTime="10" tolerance="1e-6" stepSize="0.01">
+    <Annotations><Annotation type="x"/></Annotations>
+  </DefaultExperiment>
+
+  <ModelVariables>
+    <Float64 name="x" valueReference="0"/>
+  </ModelVariables>
+  <ModelStructure/>
+  <Annotations>
+    <Annotation type="com.example.tool"><Whatever deeply="nested"/></Annotation>
+  </Annotations>
+</fmiModelDescription>

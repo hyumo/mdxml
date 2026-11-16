@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from mdxml._convert import Converter
+from mdxml._convert import Converter, to_bool, to_double, to_text
 from mdxml._errors import ParseError
 
 
@@ -52,6 +52,30 @@ AttrTable = Mapping[str, Attr]
 def table(*attrs: Attr) -> AttrTable:
     """Build a read-only attribute table keyed by XML name."""
     return MappingProxyType({attr.xml: attr for attr in attrs})
+
+
+def required_text(xml: str, field: str) -> Attr:
+    """Return a required text attribute; lenient mode uses ``""`` when it's missing."""
+    return Attr(xml, field, to_text, required=True, fallback="")
+
+
+def text(xml: str, field: str) -> Attr:
+    """Return an optional text attribute."""
+    return Attr(xml, field, to_text)
+
+
+def flag(xml: str, field: str) -> Attr:
+    """Return an optional ``xs:boolean`` attribute."""
+    return Attr(xml, field, to_bool)
+
+
+def double(xml: str, field: str) -> Attr:
+    """Return an optional ``xs:double`` (or ``xs:float``) attribute."""
+    return Attr(xml, field, to_double)
+
+
+EMPTY = table()
+"""The attribute table of an element without attributes."""
 
 
 class Frame:

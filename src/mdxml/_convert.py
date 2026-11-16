@@ -62,6 +62,34 @@ def to_unsigned_int(text: str, *, strict: bool) -> int:
     return value
 
 
+class IntRange(Converter[int]):
+    """An XSD integer type with bounds, e.g. ``xs:byte`` is ``IntRange(-128, 127)``."""
+
+    __slots__ = ("_high", "_low", "_name")
+
+    def __init__(self, name: str, low: int, high: int) -> None:
+        self._name = name
+        self._low = low
+        self._high = high
+
+    def __call__(self, text: str, /, *, strict: bool) -> int:
+        """Convert ``text``, checking it's within the type's bounds."""
+        value = to_int(text, strict=strict)
+        if not self._low <= value <= self._high:
+            raise ValueError(f"{text!r} is out of range for {self._name} [{self._low}, {self._high}]")
+        return value
+
+
+BYTE = IntRange("xs:byte", -(2**7), 2**7 - 1)
+UNSIGNED_BYTE = IntRange("xs:unsignedByte", 0, 2**8 - 1)
+SHORT = IntRange("xs:short", -(2**15), 2**15 - 1)
+UNSIGNED_SHORT = IntRange("xs:unsignedShort", 0, 2**16 - 1)
+INT = IntRange("xs:int", -(2**31), 2**31 - 1)
+UNSIGNED_INT = IntRange("xs:unsignedInt", 0, 2**32 - 1)
+LONG = IntRange("xs:long", -(2**63), 2**63 - 1)
+UNSIGNED_LONG = IntRange("xs:unsignedLong", 0, 2**64 - 1)
+
+
 def to_double(text: str, *, strict: bool) -> float:
     """``xs:double``, including ``INF``, ``-INF`` and ``NaN``."""
     value = text.strip()

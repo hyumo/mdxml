@@ -5,10 +5,12 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from mdxml import ParseError, read_header
+import mdxml
+from mdxml import ParseError, Source, fmi2
 from mdxml.fmi2 import (
     BaseUnit,
     BooleanType,
@@ -30,6 +32,13 @@ from mdxml.fmi2 import (
 DATA = Path(__file__).parent / "data"
 REFERENCE_FMI2 = sorted((DATA / "reference_fmus").glob("*/FMI2.xml"))
 FULL = DATA / "fmi2" / "full_header.xml"
+
+
+def read_header(src: Source, **options: Any) -> fmi2.ModelHeader:
+    """Read an FMI 2 Model Header, narrowed to the FMI 2 type."""
+    header = mdxml.read_header(src, **options)
+    assert isinstance(header, fmi2.ModelHeader)
+    return header
 
 
 def header_xml(body: str, root_attrs: str = 'modelName="M" guid="g"') -> bytes:
@@ -364,8 +373,6 @@ def test_to_dict_writes_special_doubles_as_xsd_strings() -> None:
 
 
 def test_cli_strict_flag(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    import mdxml
-
     path = tmp_path / "md.xml"
     path.write_bytes(header_xml('<LogCategories><Category name="c" color="red"/></LogCategories>'))
 
