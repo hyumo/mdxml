@@ -28,6 +28,9 @@ classifiers = [
 mdxml = "mdxml:main"
 
 [dependency-groups]
+bench = [
+    "fmpy>=0.3.32",
+]
 dev = [
     "pytest>=8",
     "mypy>=1.13",
@@ -41,16 +44,23 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not slow"]
 xfail_strict = true
+markers = ["slow: streams a million variables under tracemalloc; run with `pytest -m slow`"]
 
 [tool.mypy]
 strict = true
 python_version = "3.10"
-files = ["src", "tests", "scripts"]
+files = ["src", "tests", "scripts", "benchmarks"]
+
+[[tool.mypy.overrides]]
+module = ["fmpy", "fmpy.*"]
+ignore_missing_imports = true
 
 [tool.pyright]
-include = ["src", "tests", "scripts"]
+include = ["src", "tests", "scripts", "benchmarks"]
+extraPaths = ["tests"]
+reportMissingTypeStubs = false
 typeCheckingMode = "strict"
 pythonVersion = "3.10"
 
@@ -84,6 +94,7 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D", "S", "FBT", "PLR2004", "PLC0415"]
 "scripts/**" = ["D", "S", "FBT", "PLR2004", "PLC0415"]
+"benchmarks/**" = ["D", "S", "FBT", "PLR2004", "PLC0415"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"

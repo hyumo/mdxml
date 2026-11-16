@@ -9,6 +9,13 @@ between minor versions.
 
 ### Added
 
+- Performance checks: generated FMUs with up to a million variables verify
+  that `iter_variables` memory stays flat and `read_header` cost doesn't grow
+  with the variable count; concurrency tests run threads and process pools.
+- `benchmarks/bench.py` compares mdxml with FMPy (results in
+  `benchmarks/RESULTS.md`).
+- All parsed objects pickle, including `read()`'s Model Descriptions, so they
+  can be returned from process pools.
 - `mdxml.read_header(path)` reads the root attributes of an FMI 2.0 Model
   Header from a `modelDescription.xml` file, streaming with expat and stopping
   at `<ModelVariables>`.
