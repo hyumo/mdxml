@@ -559,23 +559,31 @@ def build_header(frame: Frame, *, strict: bool) -> ModelHeader:
     )
 
 
+TYPE_DEFINITIONS: Mapping[str, tuple[type[TypeDefinition], AttrTable]] = MappingProxyType(
+    {
+        "Float32Type": (Float32Type, FLOAT_TYPE_ATTRS),
+        "Float64Type": (Float64Type, FLOAT_TYPE_ATTRS),
+        "Int8Type": (Int8Type, _integer_type_attrs(c.BYTE)),
+        "UInt8Type": (UInt8Type, _integer_type_attrs(c.UNSIGNED_BYTE)),
+        "Int16Type": (Int16Type, _integer_type_attrs(c.SHORT)),
+        "UInt16Type": (UInt16Type, _integer_type_attrs(c.UNSIGNED_SHORT)),
+        "Int32Type": (Int32Type, _integer_type_attrs(c.INT)),
+        "UInt32Type": (UInt32Type, _integer_type_attrs(c.UNSIGNED_INT)),
+        "Int64Type": (Int64Type, _integer_type_attrs(c.LONG)),
+        "UInt64Type": (UInt64Type, _integer_type_attrs(c.UNSIGNED_LONG)),
+        "BooleanType": (BooleanType, PLAIN_TYPE_ATTRS),
+        "StringType": (StringType, PLAIN_TYPE_ATTRS),
+        "BinaryType": (BinaryType, BINARY_TYPE_ATTRS),
+        "EnumerationType": (EnumerationType, ENUMERATION_TYPE_ATTRS),
+        "ClockType": (ClockType, CLOCK_TYPE_ATTRS),
+    }
+)
+"""Each type definition element's class and attribute table."""
+
 _TYPE_BUILDERS: Mapping[str, ChildRule] = MappingProxyType(
     {
-        "Float32Type": _Simple(Float32Type, FLOAT_TYPE_ATTRS),
-        "Float64Type": _Simple(Float64Type, FLOAT_TYPE_ATTRS),
-        "Int8Type": _Simple(Int8Type, _integer_type_attrs(c.BYTE)),
-        "UInt8Type": _Simple(UInt8Type, _integer_type_attrs(c.UNSIGNED_BYTE)),
-        "Int16Type": _Simple(Int16Type, _integer_type_attrs(c.SHORT)),
-        "UInt16Type": _Simple(UInt16Type, _integer_type_attrs(c.UNSIGNED_SHORT)),
-        "Int32Type": _Simple(Int32Type, _integer_type_attrs(c.INT)),
-        "UInt32Type": _Simple(UInt32Type, _integer_type_attrs(c.UNSIGNED_INT)),
-        "Int64Type": _Simple(Int64Type, _integer_type_attrs(c.LONG)),
-        "UInt64Type": _Simple(UInt64Type, _integer_type_attrs(c.UNSIGNED_LONG)),
-        "BooleanType": _Simple(BooleanType, PLAIN_TYPE_ATTRS),
-        "StringType": _Simple(StringType, PLAIN_TYPE_ATTRS),
-        "BinaryType": _Simple(BinaryType, BINARY_TYPE_ATTRS),
-        "EnumerationType": _build_enumeration_type,
-        "ClockType": _Simple(ClockType, CLOCK_TYPE_ATTRS),
+        tag: _build_enumeration_type if tag == "EnumerationType" else _Simple(cls, attrs)
+        for tag, (cls, attrs) in TYPE_DEFINITIONS.items()
     }
 )
 

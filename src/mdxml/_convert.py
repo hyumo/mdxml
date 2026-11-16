@@ -117,6 +117,11 @@ class ListOf(Converter[tuple[T, ...]]):
     def __init__(self, item: Converter[T]) -> None:
         self._item = item
 
+    @property
+    def item(self) -> Converter[T]:
+        """The converter for each item."""
+        return self._item
+
     def __call__(self, text: str, /, *, strict: bool) -> tuple[T, ...]:
         """Convert every item; any invalid item makes the whole list invalid."""
         return tuple(self._item(part, strict=strict) for part in text.split())
@@ -129,6 +134,11 @@ class EnumConverter(Converter[E | str]):
 
     def __init__(self, enum: type[E]) -> None:
         self._enum = enum
+
+    @property
+    def enum(self) -> type[E]:
+        """The enum values are converted to."""
+        return self._enum
 
     def __call__(self, text: str, /, *, strict: bool) -> E | str:
         """Convert ``text`` to a member of the enum."""

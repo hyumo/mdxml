@@ -544,7 +544,8 @@ def _variable_grammar(
     )
 
 
-def _grammars(*, annotations: bool) -> Mapping[str, Grammar[VariableFields]]:
+def _variable_kinds() -> Mapping[str, tuple[type[AbstractVariable], AttrTable]]:
+    float_attrs = _float_attrs()
     integer_kinds: dict[str, tuple[type[AbstractVariable], c.IntRange]] = {
         "Int8": (Int8Variable, c.BYTE),
         "UInt8": (UInt8Variable, c.UNSIGNED_BYTE),
@@ -555,32 +556,35 @@ def _grammars(*, annotations: bool) -> Mapping[str, Grammar[VariableFields]]:
         "Int64": (Int64Variable, c.LONG),
         "UInt64": (UInt64Variable, c.UNSIGNED_LONG),
     }
-    float_attrs = _float_attrs()
-    builders: dict[str, tuple[_VariableBuilder, AttrTable | None]] = {
-        "Float32": (_VariableBuilder(Float32Variable, float_attrs, annotations=annotations), None),
-        "Float64": (_VariableBuilder(Float64Variable, float_attrs, annotations=annotations), None),
-        **{
-            tag: (_VariableBuilder(cls, _integer_attrs(bounds), annotations=annotations), None)
-            for tag, (cls, bounds) in integer_kinds.items()
-        },
-        "Boolean": (_VariableBuilder(BooleanVariable, BOOLEAN_ATTRS, annotations=annotations), None),
-        "String": (
-            _VariableBuilder(StringVariable, STRING_ATTRS, annotations=annotations, start_children=True),
-            STRING_START_ATTRS,
-        ),
-        "Binary": (
-            _VariableBuilder(BinaryVariable, BINARY_ATTRS, annotations=annotations, start_children=True),
-            BINARY_START_ATTRS,
-        ),
-        "Enumeration": (_VariableBuilder(EnumerationVariable, ENUMERATION_ATTRS, annotations=annotations), None),
-        "Clock": (_VariableBuilder(ClockVariable, CLOCK_ATTRS, annotations=annotations), None),
-    }
     return MappingProxyType(
         {
-            tag: _variable_grammar(tag, builder, start_attrs, annotations=annotations)
-            for tag, (builder, start_attrs) in builders.items()
+            "Float32": (Float32Variable, float_attrs),
+            "Float64": (Float64Variable, float_attrs),
+            **{tag: (cls, _integer_attrs(bounds)) for tag, (cls, bounds) in integer_kinds.items()},
+            "Boolean": (BooleanVariable, BOOLEAN_ATTRS),
+            "String": (StringVariable, STRING_ATTRS),
+            "Binary": (BinaryVariable, BINARY_ATTRS),
+            "Enumeration": (EnumerationVariable, ENUMERATION_ATTRS),
+            "Clock": (ClockVariable, CLOCK_ATTRS),
         }
     )
+
+
+VARIABLE_KINDS = _variable_kinds()
+"""Each variable element's class and attribute table."""
+
+_START_CHILDREN: Mapping[str, AttrTable] = MappingProxyType(
+    {"String": STRING_START_ATTRS, "Binary": BINARY_START_ATTRS}
+)
+
+
+def _grammars(*, annotations: bool) -> Mapping[str, Grammar[VariableFields]]:
+    grammars: dict[str, Grammar[VariableFields]] = {}
+    for tag, (cls, attrs) in VARIABLE_KINDS.items():
+        start_attrs = _START_CHILDREN.get(tag)
+        builder = _VariableBuilder(cls, attrs, annotations=annotations, start_children=start_attrs is not None)
+        grammars[tag] = _variable_grammar(tag, builder, start_attrs, annotations=annotations)
+    return MappingProxyType(grammars)
 
 
 VARIABLE_GRAMMARS = _grammars(annotations=False)
