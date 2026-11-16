@@ -32,6 +32,7 @@ dev = [
     "pytest>=8",
     "mypy>=1.13",
     "pyright>=1.1.390",
+    "ruff>=0.17.5",
 ]
 
 [build-system]
@@ -52,3 +53,40 @@ files = ["src", "tests", "scripts"]
 include = ["src", "tests", "scripts"]
 typeCheckingMode = "strict"
 pythonVersion = "3.10"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # Pyflakes
+    "I",       # import sorting
+    "B",       # bugbear
+    "UP",      # pyupgrade
+    "SIM",     # simplifications
+    "C4",      # comprehensions
+    "PIE",     # misc cleanups
+    "RET",     # return statements
+    "PERF",    # performance
+    "RUF",     # ruff-specific
+    "PT",      # pytest style
+    "ERA",     # commented-out code
+    "PL",      # pylint
+    "D",       # docstrings (src only, see per-file-ignores)
+    "S",       # bandit security (src only)
+    "FBT",     # boolean positional arguments (src only)
+]
+# Deliberately not selected: ANN and TC (strict mypy/pyright cover typing), PTH (os.path is used on
+# purpose for str paths), EM/TRY003 (f-string error messages are fine), ARG (protocol methods take
+# arguments they don't use), N818 (UnsupportedFmiVersion and UnsafeInput are deliberate names).
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "S", "FBT", "PLR2004", "PLC0415"]
+"scripts/**" = ["D", "S", "FBT", "PLR2004", "PLC0415"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.pylint]
+max-args = 8

@@ -9,6 +9,7 @@ from mdxml.fmi2._header import ModelHeader as Fmi2ModelHeader
 from mdxml.fmi2._header import build_header as build_fmi2_header
 
 ROOT = "fmiModelDescription"
+_ROOT_CHILD_DEPTH = 2  # depth of the root's direct children, e.g. <ModelVariables>
 
 
 class _HeaderHandler:
@@ -29,7 +30,7 @@ class _HeaderHandler:
         self._depth += 1
         if self._depth == 1:
             self._start_root(name, attrs)
-        elif self._depth == 2 and name == "ModelVariables":
+        elif self._depth == _ROOT_CHILD_DEPTH and name == "ModelVariables":
             raise _reader.Stop
 
     def end(self, name: str) -> None:

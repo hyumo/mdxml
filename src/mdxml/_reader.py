@@ -61,8 +61,8 @@ def run(stream: Readable, handler: Handler, position_sink: list[Position]) -> No
     position_sink.append(_ExpatPosition(parser))
     try:
         while chunk := stream.read(CHUNK_SIZE):
-            parser.Parse(chunk, False)
-        parser.Parse(b"", True)
+            parser.Parse(chunk, False)  # noqa: FBT003 - expat only accepts isfinal positionally
+        parser.Parse(b"", True)  # noqa: FBT003
     except Stop:
         return
     except expat.ExpatError as exc:

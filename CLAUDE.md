@@ -1,3 +1,21 @@
+## Checks
+
+Run all of these before committing; they must pass. While the repo is private, run them locally instead of relying on GitHub Actions CI.
+
+```sh
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+uv run mypy
+uv run pyright
+```
+
+Python 3.10 is the oldest supported version, so also run the tests on it:
+
+```sh
+UV_PROJECT_ENVIRONMENT=<scratch dir>/venv310 uv run --python 3.10 --group dev pytest
+```
+
 ## Agent skills
 
 ### Issue tracker

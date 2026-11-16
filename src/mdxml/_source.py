@@ -73,7 +73,9 @@ def _is_seekable(stream: Readable) -> bool:
 def _read_prefix(stream: Readable) -> bytes:
     prefix: object = stream.read(_MAGIC_LENGTH)
     if not isinstance(prefix, bytes):  # pyright: ignore[reportUnnecessaryIsInstance] - text streams lie about their type
-        raise TypeError(f"expected a binary stream, got one returning {type(prefix).__name__}; open the file in 'rb' mode")
+        raise TypeError(
+            f"expected a binary stream, got one returning {type(prefix).__name__}; open the file in 'rb' mode"
+        )
     return prefix
 
 

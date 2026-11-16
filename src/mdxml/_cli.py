@@ -17,7 +17,9 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     header = commands.add_parser("header", help="print the Model Header as JSON")
     header.add_argument("path", help="a .fmu file, an unzipped FMU directory or a modelDescription.xml file")
-    header.add_argument("--member", help="where the Model Description lives inside the FMU (default: modelDescription.xml)")
+    header.add_argument(
+        "--member", help="where the Model Description lives inside the FMU (default: modelDescription.xml)"
+    )
     return parser
 
 
