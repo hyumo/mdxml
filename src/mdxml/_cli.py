@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from mdxml._dict import to_dict
 from mdxml._errors import MdxmlError
 from mdxml._header import read_header
+from mdxml._reader import DEFAULT_MAX_XML_BYTES
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -20,13 +21,19 @@ def _parser() -> argparse.ArgumentParser:
     header.add_argument(
         "--member", help="where the Model Description lives inside the FMU (default: modelDescription.xml)"
     )
+    header.add_argument(
+        "--max-xml-bytes",
+        type=int,
+        default=DEFAULT_MAX_XML_BYTES,
+        help=f"refuse Model Descriptions larger than this many bytes (default: {DEFAULT_MAX_XML_BYTES})",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        header = read_header(args.path, member=args.member)
+        header = read_header(args.path, member=args.member, max_xml_bytes=args.max_xml_bytes)
     except (MdxmlError, OSError, ValueError, TypeError) as exc:
         print(f"mdxml: error: {exc}", file=sys.stderr)
         return 1
