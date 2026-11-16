@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from mdxml._cli import main
 from mdxml._dict import to_dict
-from mdxml._errors import MdxmlError, ParseError, UnsupportedFmiVersion
+from mdxml._errors import MdxmlError, ParseError, UnsafeInput, UnsupportedFmiVersion
 from mdxml._header import read_header
+from mdxml._reader import DEFAULT_MAX_XML_BYTES
 from mdxml._source import Source
 
 __all__ = [
+    "DEFAULT_MAX_XML_BYTES",
     "MdxmlError",
     "ParseError",
     "Source",
+    "UnsafeInput",
     "UnsupportedFmiVersion",
     "main",
     "read_header",

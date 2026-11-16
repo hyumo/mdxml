@@ -22,6 +22,15 @@ class ParseError(MdxmlError, ValueError):
         super().__init__(f"{message}{location}")
 
 
+class UnsafeInput(MdxmlError):
+    """The input looks hostile: a ``DOCTYPE`` or entity declaration, or XML larger than ``max_xml_bytes``.
+
+    Raised before the dangerous part is processed: entities are never expanded,
+    external resources are never fetched, and oversized XML is never fully read
+    or decompressed.
+    """
+
+
 class UnsupportedFmiVersion(MdxmlError):
     """The Model Description declares an FMI Version mdxml doesn't support."""
 

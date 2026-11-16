@@ -16,7 +16,13 @@ between minor versions.
   `modelDescription.xml` path, a binary file-like object or bytes. Zips are
   detected by magic bytes and streamed without extracting to disk; `member=`
   (CLI: `--member`) overrides the Model Description's location.
-- `MdxmlError`, `ParseError` (with line and column) and `UnsupportedFmiVersion`.
+- Hostile input protection, always on: any `DOCTYPE` or entity declaration is
+  refused, external entities are never resolved, and XML larger than
+  `max_xml_bytes` (default 256 MB, per call; CLI: `--max-xml-bytes`) is refused,
+  counting the decompressed size for zips. These raise `UnsafeInput`. Corrupt
+  zip data raises `ParseError`.
+- `MdxmlError`, `ParseError` (with line and column), `UnsafeInput` and
+  `UnsupportedFmiVersion`.
 - `mdxml.to_dict()` converts parsed objects into JSON-ready data.
 - `mdxml header FILE` command (also `python -m mdxml`) prints the Model Header
   as JSON.

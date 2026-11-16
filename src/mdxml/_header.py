@@ -52,7 +52,12 @@ class _HeaderHandler:
             raise UnsupportedFmiVersion(fmi_version)
 
 
-def read_header(src: Source, *, member: str | None = None) -> Fmi2ModelHeader:
+def read_header(
+    src: Source,
+    *,
+    member: str | None = None,
+    max_xml_bytes: int = _reader.DEFAULT_MAX_XML_BYTES,
+) -> Fmi2ModelHeader:
     """Read the Model Header of an FMU.
 
     ``src`` is a path to a ``.fmu`` zip, an unzipped FMU directory or a
@@ -62,11 +67,16 @@ def read_header(src: Source, *, member: str | None = None) -> Fmi2ModelHeader:
 
     Parsing stops at ``<ModelVariables>``, so the cost doesn't depend on how
     many Model Variables the FMU has.
+
+    Hostile input raises :class:`~mdxml.UnsafeInput`: any ``DOCTYPE`` or
+    entity declaration, or XML larger than ``max_xml_bytes`` (256 MB by
+    default; for a zip, the decompressed size counts).
     """
+    _reader.check_max_xml_bytes(max_xml_bytes)
     position: list[_reader.Position] = []
     handler = _HeaderHandler(position)
-    with open_source(src, member) as stream:
-        _reader.run(stream, handler, position)
+    with open_source(src, member, max_xml_bytes) as stream:
+        _reader.run(stream, handler, position, max_xml_bytes=max_xml_bytes)
     if handler.header is None:  # pragma: no cover - expat rejects documents without a root
         raise ParseError(f"no <{ROOT}> element found")
     return handler.header

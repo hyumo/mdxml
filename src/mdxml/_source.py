@@ -16,11 +16,12 @@ from __future__ import annotations
 import io
 import os
 import zipfile
+import zlib
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import IO, Protocol, Union, cast
 
-from mdxml._errors import ParseError
+from mdxml._errors import ParseError, UnsafeInput
 
 MODEL_DESCRIPTION = "modelDescription.xml"
 
@@ -61,6 +62,28 @@ class _Prefixed:
         return data
 
 
+class _ZipEntry:
+    """A zip entry stream that reports corrupt archive data as :class:`ParseError`.
+
+    zipfile only notices some corruption (a bad CRC, a broken deflate stream, an
+    entry longer or shorter than its header claims) while reading, so the
+    translation has to happen here rather than when the entry is opened.
+    """
+
+    __slots__ = ("_entry", "_name", "_origin")
+
+    def __init__(self, entry: Readable, name: str, origin: str) -> None:
+        self._entry = entry
+        self._name = name
+        self._origin = origin
+
+    def read(self, size: int = -1, /) -> bytes:
+        try:
+            return self._entry.read(size)
+        except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
+            raise ParseError(f"corrupt zip data in {self._name!r} in {self._origin}: {exc}") from None
+
+
 def _is_zip(prefix: bytes) -> bool:
     return prefix.startswith(_ZIP_MAGIC)
 
@@ -85,7 +108,9 @@ def _reject_member(member: str | None, origin: str) -> None:
 
 
 @contextmanager
-def _zip_member(stream: IO[bytes], member: str | None, origin: str) -> Generator[Readable, None, None]:
+def _zip_member(
+    stream: IO[bytes], member: str | None, origin: str, max_xml_bytes: int
+) -> Generator[Readable, None, None]:
     name = member if member is not None else MODEL_DESCRIPTION
     try:
         archive = zipfile.ZipFile(stream)
@@ -93,22 +118,35 @@ def _zip_member(stream: IO[bytes], member: str | None, origin: str) -> Generator
         raise ParseError(f"{origin} looks like a zip archive but can't be opened: {exc}") from None
     with archive:
         try:
-            entry = archive.open(name)
+            info = archive.getinfo(name)
         except KeyError:
             raise FileNotFoundError(f"{name!r} not found in {origin}") from None
+        # Cheap early rejection. zipfile never yields more than file_size bytes for an entry,
+        # and the reader counts the bytes it actually gets, so a lying header can't get past either.
+        if info.file_size > max_xml_bytes:
+            raise UnsafeInput(
+                f"{name!r} in {origin} decompresses to {info.file_size} bytes, more than max_xml_bytes={max_xml_bytes}"
+            )
+        try:
+            entry = archive.open(info)
+        except (zipfile.BadZipFile, NotImplementedError, RuntimeError) as exc:
+            # Bad local header, unsupported compression method, or an encrypted entry.
+            raise ParseError(f"can't read {name!r} in {origin}: {exc}") from None
         with entry:
-            yield entry
+            yield _ZipEntry(entry, name, origin)
 
 
 @contextmanager
-def _open_stream(stream: Readable, member: str | None, origin: str) -> Generator[Readable, None, None]:
+def _open_stream(
+    stream: Readable, member: str | None, origin: str, max_xml_bytes: int
+) -> Generator[Readable, None, None]:
     if _is_seekable(stream):
         seekable = cast(IO[bytes], stream)
         start = seekable.tell()
         prefix = _read_prefix(stream)
         seekable.seek(start)
         if _is_zip(prefix):
-            with _zip_member(seekable, member, origin) as entry:
+            with _zip_member(seekable, member, origin, max_xml_bytes) as entry:
                 yield entry
             return
         _reject_member(member, origin)
@@ -126,13 +164,14 @@ def _open_stream(stream: Readable, member: str | None, origin: str) -> Generator
 
 
 @contextmanager
-def open_source(src: Source, member: str | None = None) -> Generator[Readable, None, None]:
+def open_source(src: Source, member: str | None, max_xml_bytes: int) -> Generator[Readable, None, None]:
     """Yield a binary stream of the Model Description XML in ``src``.
 
+    Only the Model Description is opened; no other archive member is read.
     Streams passed in by the caller are never closed. Files mdxml opens itself are.
     """
     if isinstance(src, (bytes, bytearray, memoryview)):
-        with _open_stream(io.BytesIO(src), member, "the given bytes") as stream:
+        with _open_stream(io.BytesIO(src), member, "the given bytes", max_xml_bytes) as stream:
             yield stream
         return
 
@@ -143,11 +182,11 @@ def open_source(src: Source, member: str | None = None) -> Generator[Readable, N
             if not os.path.isfile(path):
                 raise FileNotFoundError(f"{path!r} not found in FMU directory {os.fspath(src)!r}")
             member = None
-        with open(path, "rb") as file, _open_stream(file, member, repr(path)) as stream:
+        with open(path, "rb") as file, _open_stream(file, member, repr(path), max_xml_bytes) as stream:
             yield stream
         return
 
     if not callable(getattr(src, "read", None)):
         raise TypeError(f"can't read a Model Description from {type(src).__name__}")
-    with _open_stream(src, member, "the given stream") as stream:
+    with _open_stream(src, member, "the given stream", max_xml_bytes) as stream:
         yield stream
