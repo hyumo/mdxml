@@ -36,6 +36,8 @@ OPERATIONS: dict[str, str] = {
 
 
 def _peak_rss_kib() -> int:
+    if sys.platform == "win32":
+        raise SystemExit("bench.py measures peak memory with the resource module, which Windows doesn't have")
     import resource
 
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -53,7 +55,7 @@ def _operation(name: str, path: str) -> Callable[[], int]:
             return lambda: sum(1 for _ in mdxml.iter_variables(path))
         return lambda: len(mdxml.read(path).variables)
 
-    import fmpy  # FMPy has no type hints
+    import fmpy  # pyright: ignore[reportMissingImports]  # only in the "bench" group; untyped
 
     read_model_description: Any = getattr(fmpy, "read_model_description")  # noqa: B009 - FMPy is untyped
     validate = name.endswith("(validate=True)")
@@ -109,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
         worker(*args.worker)
         return 0
 
-    import fmpy
+    import fmpy  # pyright: ignore[reportMissingImports]  # only in the "bench" group
     from fmu_factory import write_fmu
 
     fmpy_version: str = getattr(fmpy, "__version__", "?")
