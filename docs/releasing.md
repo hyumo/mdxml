@@ -29,6 +29,7 @@ The workflow then:
 
 1. checks that the tag, `pyproject.toml` and `CHANGELOG.md` agree, and runs ruff, the tests, mypy and pyright;
 2. builds the sdist and wheel, and checks the wheel has no XSD files, no runtime dependencies and a `py.typed` marker;
-3. publishes both to PyPI from the `pypi` environment.
+3. publishes both to PyPI from the `pypi` environment;
+4. creates the GitHub release for the tag, with the changelog section as its notes and the same wheel and sdist attached (tags like `v1.0.0rc1` become pre-releases).
 
 A tag without a matching version or a dated changelog section with at least one entry fails in the first step, so nothing is published.
