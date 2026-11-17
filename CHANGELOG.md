@@ -7,6 +7,16 @@ between minor versions.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-16
+
+### Changed
+
+- The README shows how to install with uv (`uv add mdxml`,
+  `uv pip install mdxml`) and how to run the command-line tool without
+  installing it (`uvx mdxml header model.fmu`).
+- Each release now also creates a GitHub release, with the changelog section as
+  its notes and the published wheel and sdist attached.
+
 ## [0.1.0] - 2026-11-16
 
 First release: a fast, zero-dependency reader for FMI 2.0 and FMI 3.0
