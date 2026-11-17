@@ -2,12 +2,22 @@
 
 Run all of these before committing; they must pass. While the repo is private, run them locally instead of relying on GitHub Actions CI.
 
+Start from the same environment CI uses. `uv sync` removes packages from other groups (such as FMPy from `bench`), which would otherwise hide missing-import errors:
+
 ```sh
+uv sync --locked --group dev
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest
 uv run mypy
 uv run pyright
+```
+
+CI also type-checks on Windows and macOS, where some standard-library modules (like `resource`) don't exist, so check those platforms too:
+
+```sh
+uv run mypy --platform win32 && uv run mypy --platform darwin
+uv run pyright --pythonplatform Windows && uv run pyright --pythonplatform Darwin
 ```
 
 Tests marked `slow` (million-variable memory checks, about a minute) are skipped by default; run them when touching the reader, the grammars or the variable stream:
