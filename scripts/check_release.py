@@ -1,6 +1,7 @@
-"""Check that a release tag is ready to publish.
+"""Check that a release tag is ready to publish, or print its release notes.
 
 Usage: python scripts/check_release.py v1.2.3
+       python scripts/check_release.py --notes v1.2.3
 
 - The tag is ``v`` followed by the version in ``pyproject.toml``.
 - ``CHANGELOG.md`` has a dated section for that version, ``## [1.2.3] - YYYY-MM-DD``,
@@ -35,6 +36,21 @@ def changelog_section(changelog: str, version: str) -> str | None:
     return rest[: following.start()] if following else rest
 
 
+def release_notes(changelog: str, tag: str) -> str:
+    """Return the GitHub release notes for ``tag``: its changelog section plus an install line."""
+    tagged = _TAG.fullmatch(tag)
+    if tagged is None:
+        raise ValueError(f"tag {tag!r} isn't vMAJOR.MINOR.PATCH")
+    version = tagged.group(1)
+    section = changelog_section(changelog, version)
+    if section is None:
+        raise ValueError(f"CHANGELOG.md has no section for {version}")
+    return (
+        f"{section.strip()}\n\n"
+        f"Install with `pip install mdxml=={version}`. Also on [PyPI](https://pypi.org/project/mdxml/{version}/).\n"
+    )
+
+
 def problems(tag: str, pyproject: str, changelog: str) -> list[str]:
     """Return every reason the tag can't be released."""
     found: list[str] = []
@@ -54,8 +70,15 @@ def problems(tag: str, pyproject: str, changelog: str) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) == 2 and argv[0] == "--notes":
+        try:
+            print(release_notes((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), argv[1]), end="")
+        except ValueError as exc:
+            print(f"release notes: {exc}", file=sys.stderr)
+            return 1
+        return 0
     if len(argv) != 1:
-        print("usage: check_release.py vX.Y.Z", file=sys.stderr)
+        print("usage: check_release.py [--notes] vX.Y.Z", file=sys.stderr)
         return 2
     found = problems(
         argv[0],

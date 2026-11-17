@@ -113,3 +113,28 @@ def test_the_release_check_script_runs() -> None:
     )
     assert result.returncode == 1
     assert "isn't vMAJOR.MINOR.PATCH" in result.stderr
+
+
+def test_release_notes_are_the_changelog_section() -> None:
+    notes = check_release.release_notes(CHANGELOG, "v1.2.3")
+    assert notes.startswith("### Added\n\n- Something new.")
+    assert "Older." not in notes  # stops at the next version
+    assert "pip install mdxml==1.2.3" in notes
+    assert notes.endswith("https://pypi.org/project/mdxml/1.2.3/).\n")
+
+
+@pytest.mark.parametrize(("tag", "message"), [("1.2.3", "isn't vMAJOR"), ("v9.9.9", "no section for 9.9.9")])
+def test_release_notes_need_a_valid_tag_and_section(tag: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        check_release.release_notes(CHANGELOG, tag)
+
+
+def test_release_notes_for_the_real_changelog() -> None:
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "check_release.py"), "--notes", "v0.1.0"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.startswith("First release:")
+    assert "pip install mdxml==0.1.0" in result.stdout
