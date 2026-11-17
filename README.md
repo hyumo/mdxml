@@ -10,8 +10,23 @@ Fast, zero-dependency reader for the `modelDescription.xml` of FMI 2.0 and FMI 3
 
 ## Installation
 
+With [uv](https://docs.astral.sh/uv/):
+
+```sh
+uv add mdxml          # add it to your project's dependencies
+uv pip install mdxml  # or install it into the current environment
+```
+
+With pip:
+
 ```sh
 pip install mdxml
+```
+
+To run the command-line tool without installing anything, use `uvx`:
+
+```sh
+uvx mdxml header model.fmu
 ```
 
 ## Usage
